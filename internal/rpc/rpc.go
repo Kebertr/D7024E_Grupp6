@@ -6,15 +6,17 @@ import (
 	"time"
 )
 
-func sendPing(fromAddress string, fromPort int, address string, port int) bool {
-	fromAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(fromAddress, fmt.Sprint(fromPort)))
+func sendPing(fromAddress string, address string) bool {
+	fromAddr, err := net.ResolveUDPAddr("udp", fromAddress)
 	if err != nil {
 		return false
 	}
-	fullAddress, err := net.ResolveUDPAddr("udp", net.JoinHostPort(address, fmt.Sprint(port)))
+
+	fullAddress, err := net.ResolveUDPAddr("udp", address)
 	if err != nil {
 		return false
 	}
+
 	resp, err := net.DialUDP("udp", fromAddr, fullAddress)
 	if err != nil {
 		return false
@@ -23,6 +25,10 @@ func sendPing(fromAddress string, fromPort int, address string, port int) bool {
 		return false
 	}
 	defer resp.Close()
+	err = resp.SetDeadline(time.Now().Add(2 * time.Second))
+	if err != nil {
+		return false
+	}
 	time_start := time.Now()
 	_, err = resp.Write([]byte("Test"))
 	if err != nil {
@@ -41,13 +47,11 @@ func sendPing(fromAddress string, fromPort int, address string, port int) bool {
 	return true
 }
 
-func confirmPing(address string, port int) bool {
-	fullAddress := net.JoinHostPort(address, fmt.Sprint(port))
-	conn, err := net.ListenPacket("udp", fullAddress)
+func confirmPing(conn net.PacketConn) bool {
+	err := conn.SetDeadline(time.Now().Add(2 * time.Second))
 	if err != nil {
 		return false
 	}
-	defer conn.Close()
 	ans, sender, err := conn.ReadFrom(make([]byte, 16))
 	if err != nil {
 		return false
