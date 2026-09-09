@@ -3,14 +3,15 @@ package rpc
 import (
 	"fmt"
 	"net"
+	"time"
 )
 
 func sendPing(fromAddress string, fromPort int, address string, port int) bool {
-	fromAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", fromAddress, fromPort))
+	fromAddr, err := net.ResolveUDPAddr("udp", net.JoinHostPort(fromAddress, fmt.Sprint(fromPort)))
 	if err != nil {
 		return false
 	}
-	fullAddress, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", address, port))
+	fullAddress, err := net.ResolveUDPAddr("udp", net.JoinHostPort(address, fmt.Sprint(port)))
 	if err != nil {
 		return false
 	}
@@ -22,6 +23,7 @@ func sendPing(fromAddress string, fromPort int, address string, port int) bool {
 		return false
 	}
 	defer resp.Close()
+	time_start := time.Now()
 	_, err = resp.Write([]byte("Test"))
 	if err != nil {
 		return false
@@ -34,6 +36,8 @@ func sendPing(fromAddress string, fromPort int, address string, port int) bool {
 	if ans != 8 {
 		return false
 	}
+	time_end := time.Now()
+	fmt.Printf("Ping time: %v\n", time_end.Sub(time_start))
 	return true
 }
 
