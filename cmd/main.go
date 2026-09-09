@@ -1,8 +1,9 @@
 package main
 
 import (
-	"github.com/RasmusKebert/d7024e-tutorial/internal/cli"
-	"github.com/RasmusKebert/d7024e-tutorial/pkg/build"
+	"fmt"
+
+	"github.com/RasmusKebert/d7024e-tutorial/internal/kademlia"
 )
 
 var (
@@ -11,7 +12,10 @@ var (
 )
 
 func main() {
-	build.BuildVersion = BuildVersion
-	build.BuildTime = BuildTime
-	cli.Execute()
+	fmt.Println("Pretending to run the kademlia app...")
+	// Using stuff from the kademlia package here. Something like...
+	id := kademlia.NewKademliaID("FFFFFFFF00000000000000000000000000000000")
+	contact := kademlia.NewContact(id, "localhost:8000")
+	fmt.Println(contact.String())
+	fmt.Printf("%v\n", contact)
 }
