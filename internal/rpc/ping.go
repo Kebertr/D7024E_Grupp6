@@ -21,9 +21,6 @@ func sendPing(fromAddress string, address string) bool {
 	if err != nil {
 		return false
 	}
-	if err != nil {
-		return false
-	}
 	defer resp.Close()
 	err = resp.SetDeadline(time.Now().Add(2 * time.Second))
 	if err != nil {

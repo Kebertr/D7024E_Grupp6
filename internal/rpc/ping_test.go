@@ -52,7 +52,7 @@ func TestSendPingWrongReturnSize(t *testing.T) {
 	go func() {
 		_, sender, err := conn.ReadFrom(make([]byte, 16))
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 		conn.WriteTo([]byte("WrongTest"), sender)
 	}()
