@@ -1,12 +1,11 @@
 package kademlia
 
 import (
-	"context"
 	"errors"
 )
 
 const (
-	alpha = 3 // Number rof parallel queries
+	alpha = 1 // Number of parallel queries
 	k     = bucketSize
 )
 
@@ -17,13 +16,15 @@ type Kademlia struct {
 	Data         map[string][]byte
 }
 
-func (k *Kademlia) LookupContact(ctx context.Context, target *Contact) ([]Contact, error) {
-	if k == nil || k.RoutingTable == nil || k.Network == nil ||
+func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
+	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil ||
 		target == nil || target.ID == nil {
 		return nil, errors.New("invalid lookup arguments")
 	}
 
-	candidates := k.RoutingTable.FindClosestContacts(target.ID, bucketSize)
+	closest := kademlia.RoutingTable.FindClosestContacts(target.ID, k)
+	candidates := &ContactCandidates{}
+	candidates.Append(closest)
 	queried := make(map[string]bool)
 
 	for {
@@ -33,26 +34,26 @@ func (k *Kademlia) LookupContact(ctx context.Context, target *Contact) ([]Contac
 			break
 		}
 
-		results, err := queryBatch(k.Network, batch, target.ID)
+		results, err := queryBatch(kademlia.Network, batch, target.ID)
 		// Stop if network query fails
 		if err != nil {
 			return nil, err
 		}
 
 		// Continues until all candidates have been queried
-		for _, result := range results {
+		for i, result := range results {
+			kademlia.RoutingTable.AddContact(batch[i])
 			for _, contact := range result {
 				if contact.ID == nil {
 					continue
 				}
 
-				candidates = mergeClosest(candidates, contact, target.ID, bucketSize)
-				k.RoutingTable.AddContact(contact)
+				mergeClosest(candidates, contact, target.ID, k)
 			}
 		}
 	}
 
-	return candidates, nil
+	return candidates.contacts, nil
 }
 
 func (kademlia *Kademlia) LookupData(hash string) {
@@ -67,9 +68,9 @@ func (kademlia *Kademlia) Store(data []byte) {
 // ------------------
 // returns the next batch of unqueried contacts from the candidates list, up to the specified alpha value.
 // It also marks the contacts as queried in the provided map.
-func nextUnqueried(candidates []Contact, queried map[string]bool, alpha int) []Contact {
+func nextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha int) []Contact {
 	var batch []Contact
-	for _, candidate := range candidates {
+	for _, candidate := range candidates.contacts {
 		if !queried[candidate.ID.String()] {
 			batch = append(batch, candidate)
 			queried[candidate.ID.String()] = true
@@ -102,6 +103,7 @@ func queryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 				contacts []Contact
 			}{i, contacts}
 		}(i, contact)
+
 	}
 
 	for i := 0; i < len(batch); i++ {
@@ -118,31 +120,28 @@ func queryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 
 // merges a new contact into the candidates list, keeping only the closest 'count' contacts to the targetID.
 func mergeClosest(
-	candidates []Contact,
+	candidates *ContactCandidates,
 	newContact Contact,
 	targetID *KademliaID,
 	count int,
-) []Contact {
+) {
 	if newContact.ID == nil {
-		return candidates
+		return
 	}
 
 	newContact.CalcDistance(targetID)
 
-	for _, candidate := range candidates {
+	for _, candidate := range candidates.contacts {
 		if candidate.ID.Equals(newContact.ID) {
-			return candidates
+			return
 		}
 	}
 
-	candidates = append(candidates, newContact)
+	candidates.contacts = append(candidates.contacts, newContact)
 
-	sorted := ContactCandidates{contacts: candidates}
-	sorted.Sort()
+	candidates.Sort()
 
-	if sorted.Len() > count {
-		return sorted.contacts[:count]
+	if candidates.Len() > count {
+		candidates.contacts = candidates.contacts[:count]
 	}
-
-	return sorted.contacts
 }
