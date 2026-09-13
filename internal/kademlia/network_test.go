@@ -1,87 +1,58 @@
 package kademlia
 
-import (
-	"crypto/sha256"
-	"encoding/hex"
-	"testing"
-	"time"
+import "testing"
 
-	transport "github.com/RasmusKebert/D7024E_Grupp6/internal/network"
-)
+func TestSendFindContactMessage(t *testing.T) {
+	mock := NewMockNetwork()
 
-func TestProtocolPingAndFindNode(t *testing.T) {
-	network := transport.NewMockNetwork()
-	alice, err := NewKademlia(network, transport.Address{IP: "127.0.0.1", Port: 12100})
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
+	node2 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2")
+	node3 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000003"), "node3")
+	node4 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000004"), "node4")
+
+	routing1 := NewRoutingTable(node1)
+	routing2 := NewRoutingTable(node2)
+
+	routing1.AddContact(node2)
+	routing2.AddContact(node3)
+	routing2.AddContact(node4)
+
+	network1, err := initNetwork(mock, node1.Address)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
-	defer alice.Close()
-	bob, err := NewKademlia(network, transport.Address{IP: "127.0.0.1", Port: 12101})
+
+	network2, err := initNetwork(mock, node2.Address)
 	if err != nil {
-		t.Fatal(err)
-	}
-	defer bob.Close()
-
-	bobContact := bob.Contact()
-	if err := alice.protocol.SendPingMessage(&bobContact); err != nil {
-		t.Fatalf("send PING: %v", err)
+		t.Error(err)
 	}
 
-	waitForProtocol(t, func() bool {
-		return len(bob.closestContacts(alice.ID(), 1)) == 1
-	})
-
-	if err := alice.protocol.SendFindContactMessage(&bobContact); err != nil {
-		t.Fatalf("send FIND_NODE: %v", err)
+	kademlia1 := &Kademlia{
+		Contact:      node1,
+		RoutingTable: routing1,
+		Network:      network1,
+		Data:         make(map[string][]byte),
 	}
-	waitForProtocol(t, func() bool {
-		return len(alice.closestContacts(bob.ID(), 1)) == 1
-	})
-}
 
-func TestProtocolStoreAndFindValue(t *testing.T) {
-	network := transport.NewMockNetwork()
-	publisher, err := NewKademlia(network, transport.Address{IP: "127.0.0.1", Port: 12102})
+	kademlia2 := &Kademlia{
+		Contact:      node2,
+		RoutingTable: routing2,
+		Network:      network2,
+		Data:         make(map[string][]byte),
+	}
+
+	kademlia1.Network.serverListen(kademlia1)
+	kademlia2.Network.serverListen(kademlia2)
+
+	result, err := network1.SendFindContactMessage(&node2, node4.ID)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
-	defer publisher.Close()
-	receiver, err := NewKademlia(network, transport.Address{IP: "127.0.0.1", Port: 12103})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer receiver.Close()
 
-	value := []byte{0, 1, 2, 255, 3}
-	sum := sha256.Sum256(value)
-	key := hex.EncodeToString(sum[:])
-	receiverContact := receiver.Contact()
-
-	if err := publisher.protocol.SendStoreMessage(&receiverContact, key, value); err != nil {
-		t.Fatalf("send STORE: %v", err)
-	}
-	waitForProtocol(t, func() bool {
-		stored := receiver.StoredValues()
-		got, ok := stored[key]
-		return ok && string(got) == string(value)
-	})
-
-	if err := publisher.protocol.SendStoreMessage(&receiverContact, key, []byte("wrong")); err == nil {
-		t.Fatal("expected invalid key/value pair to be rejected")
-	}
-	if err := publisher.protocol.SendFindDataMessage(&receiverContact, key); err != nil {
-		t.Fatalf("send FIND_VALUE: %v", err)
-	}
-}
-
-func waitForProtocol(t *testing.T, condition func() bool) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for time.Now().Before(deadline) {
-		if condition() {
-			return
+	for _, contact := range result {
+		t.Log(contact)
+		if !(contact.ID.Equals(node3.ID) || contact.ID.Equals(node4.ID)) {
+			t.Error("LookupContact returned unexpected contact")
 		}
-		time.Sleep(time.Millisecond)
 	}
-	t.Fatal("protocol condition was not met before timeout")
 }

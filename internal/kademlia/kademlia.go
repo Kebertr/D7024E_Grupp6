@@ -1,150 +1,59 @@
 package kademlia
 
 import (
-	"fmt"
-	"sync"
+	"errors"
+)
 
-	transport "github.com/RasmusKebert/D7024E_Grupp6/internal/network"
+const (
+	alpha = 1 // Number of parallel queries
+	k     = bucketSize
 )
 
 type Kademlia struct {
-	me *Contact
-
-	// transportNode owns the simulated communication endpoint. Kademlia uses
-	// it without depending on a concrete socket implementation.
-	transportNode *transport.Node
-	protocol      *Network
-
-	routingTable *RoutingTable
-	// routingMu protects routing-table reads and writes performed by RPC handlers.
-	routingMu sync.RWMutex
-
-	// dataStore contains values owned by this node, indexed by their SHA-256
-	// key. The mutex protects it when future RPC handlers access it concurrently.
-	dataStore map[string][]byte
-	dataMu    sync.RWMutex
-
-	// These parameters are kept on the node so lookup and replication behavior
-	// can be adjusted without changing the node implementation.
-	alpha int
-	k     int
+	Contact      Contact
+	RoutingTable *RoutingTable
+	Network      *Network
+	Data         map[string][]byte
 }
 
-const (
-	defaultAlpha = 3
-	defaultK     = 10
-)
-
-// NewKademlia creates a node backed by the supplied simulated network.
-func NewKademlia(network transport.Network, address transport.Address) (*Kademlia, error) {
-	transportNode, err := transport.NewNode(network, address)
-	if err != nil {
-		return nil, fmt.Errorf("create Kademlia node: %w", err)
+func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
+	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil ||
+		target == nil || target.ID == nil {
+		return nil, errors.New("invalid lookup arguments")
 	}
 
-	id := NewKademliaID(transportNode.ID)
-	me := NewContact(id, address.String())
+	closest := kademlia.RoutingTable.FindClosestContacts(target.ID, k)
+	candidates := &ContactCandidates{}
+	candidates.Append(closest)
+	queried := make(map[string]bool)
 
-	node := &Kademlia{
-		me:            &me,
-		transportNode: transportNode,
-		routingTable:  NewRoutingTable(me),
-		dataStore:     make(map[string][]byte),
-		alpha:         defaultAlpha,
-		k:             defaultK,
-	}
-	node.protocol = NewNetwork(node)
-	return node, nil
-}
+	for {
+		batch := nextUnqueried(candidates, queried, alpha)
+		// Stops when every candidate has been queried
+		if len(batch) == 0 {
+			break
+		}
 
-// ID returns this node's Kademlia identifier.
-func (kademlia *Kademlia) ID() *KademliaID {
-	return kademlia.me.ID
-}
+		results, err := queryBatch(kademlia.Network, batch, target.ID)
+		// Stop if network query fails
+		if err != nil {
+			return nil, err
+		}
 
-// Address returns this node's network address in IP:port form.
-func (kademlia *Kademlia) Address() string {
-	return kademlia.me.Address
-}
+		// Continues until all candidates have been queried
+		for i, result := range results {
+			kademlia.RoutingTable.AddContact(batch[i])
+			for _, contact := range result {
+				if contact.ID == nil {
+					continue
+				}
 
-// Contact returns the node's local contact information.
-func (kademlia *Kademlia) Contact() Contact {
-	return *kademlia.me
-}
-
-// RoutingTable returns the routing table owned by this node.
-func (kademlia *Kademlia) RoutingTable() *RoutingTable {
-	return kademlia.routingTable
-}
-
-// Transport returns the underlying abstract transport node. Protocol code can
-// register handlers and send messages through this abstraction.
-func (kademlia *Kademlia) Transport() *transport.Node {
-	return kademlia.transportNode
-}
-
-// SetLookupParameters changes the lookup parallelism and replication factor.
-func (kademlia *Kademlia) SetLookupParameters(alpha, replicationFactor int) error {
-	if alpha < 1 {
-		return fmt.Errorf("alpha must be at least 1")
-	}
-	if replicationFactor < 1 {
-		return fmt.Errorf("replication factor must be at least 1")
-	}
-	kademlia.alpha = alpha
-	kademlia.k = replicationFactor
-	return nil
-}
-
-// LookupParameters returns the node's configured lookup and replication values.
-func (kademlia *Kademlia) LookupParameters() (alpha, replicationFactor int) {
-	return kademlia.alpha, kademlia.k
-}
-
-// Close shuts down the node's transport endpoint.
-func (kademlia *Kademlia) Close() error {
-	return kademlia.transportNode.Close()
-}
-
-// StoredValues returns a copy of the node's local datastore.
-func (kademlia *Kademlia) StoredValues() map[string][]byte {
-	kademlia.dataMu.RLock()
-	defer kademlia.dataMu.RUnlock()
-
-	values := make(map[string][]byte, len(kademlia.dataStore))
-	for key, value := range kademlia.dataStore {
-		values[key] = append([]byte(nil), value...)
-	}
-	return values
-}
-
-func (kademlia *Kademlia) addContact(contact Contact) {
-	kademlia.routingMu.Lock()
-	defer kademlia.routingMu.Unlock()
-	kademlia.routingTable.AddContact(contact)
-}
-
-func (kademlia *Kademlia) closestContacts(target *KademliaID, count int) []Contact {
-	kademlia.routingMu.RLock()
-	defer kademlia.routingMu.RUnlock()
-	return kademlia.routingTable.FindClosestContacts(target, count)
-}
-
-// storeLocal validates and stores one value received through a STORE RPC.
-// The copy prevents a caller from changing the value after it is stored.
-func (kademlia *Kademlia) storeLocal(key string, value []byte) error {
-	if err := validateKeyValue(key, value); err != nil {
-		return err
+				mergeClosest(candidates, contact, target.ID, k)
+			}
+		}
 	}
 
-	kademlia.dataMu.Lock()
-	defer kademlia.dataMu.Unlock()
-	kademlia.dataStore[key] = append([]byte(nil), value...)
-	return nil
-}
-
-func (kademlia *Kademlia) LookupContact(target *Contact) {
-	// TODO
+	return candidates.contacts, nil
 }
 
 func (kademlia *Kademlia) LookupData(hash string) {
@@ -153,4 +62,96 @@ func (kademlia *Kademlia) LookupData(hash string) {
 
 func (kademlia *Kademlia) Store(data []byte) {
 	// TODO
+}
+
+// HELPER FUNCTIONS
+// ------------------
+// returns the next batch of unqueried contacts from the candidates list, up to the specified alpha value.
+// It also marks the contacts as queried in the provided map.
+func nextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha int) []Contact {
+	var batch []Contact
+	for _, candidate := range candidates.contacts {
+		if !queried[candidate.ID.String()] {
+			batch = append(batch, candidate)
+			queried[candidate.ID.String()] = true
+			if len(batch) >= alpha {
+				break
+			}
+		}
+	}
+	return batch
+}
+
+// sends a FindNode request to each contact in the batch concurrently and collects the results.
+func queryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Contact, error) {
+	results := make([][]Contact, len(batch))
+	errCh := make(chan error, len(batch))
+	resultCh := make(chan struct {
+		index    int
+		contacts []Contact
+	}, len(batch))
+
+	for i, contact := range batch {
+		go func(i int, contact Contact) {
+			contacts, err := network.SendFindContactMessage(&contact, targetID)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			resultCh <- struct {
+				index    int
+				contacts []Contact
+			}{i, contacts}
+		}(i, contact)
+
+	}
+
+	for i := 0; i < len(batch); i++ {
+		select {
+		case err := <-errCh:
+			return nil, err
+		case result := <-resultCh:
+			results[result.index] = result.contacts
+		}
+	}
+
+	return results, nil
+}
+
+// merges a new contact into the candidates list, keeping only the closest 'count' contacts to the targetID.
+func mergeClosest(
+	candidates *ContactCandidates,
+	newContact Contact,
+	targetID *KademliaID,
+	count int,
+) {
+	if newContact.ID == nil {
+		return
+	}
+
+	newContact.CalcDistance(targetID)
+
+	for _, candidate := range candidates.contacts {
+		if candidate.ID.Equals(newContact.ID) {
+			return
+		}
+	}
+
+	candidates.contacts = append(candidates.contacts, newContact)
+
+	candidates.Sort()
+
+	if candidates.Len() > count {
+		candidates.contacts = candidates.contacts[:count]
+	}
+}
+
+// This get called in listenserver and gets the message. It will get the k closest contacts and then call for FindReceiverNodes
+func (kademlia *Kademlia) FindReceiverNodes(msg Message) error {
+	if msg.Target == nil {
+		return errors.New("We need a target ID")
+	}
+	contacts := kademlia.RoutingTable.FindClosestContacts(msg.Target, k)
+
+	return kademlia.Network.FindReceiverNodes(msg.From, contacts)
 }
