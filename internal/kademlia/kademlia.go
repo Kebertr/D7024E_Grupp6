@@ -28,7 +28,7 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 	queried := make(map[string]bool)
 
 	for {
-		batch := nextUnqueried(candidates, queried, alpha)
+		batch := NextUnqueried(candidates, queried, alpha)
 		// Stops when every candidate has been queried
 		if len(batch) == 0 {
 			break
@@ -68,7 +68,7 @@ func (kademlia *Kademlia) Store(data []byte) {
 // ------------------
 // returns the next batch of unqueried contacts from the candidates list, up to the specified alpha value.
 // It also marks the contacts as queried in the provided map.
-func nextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha int) []Contact {
+func NextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha int) []Contact {
 	var batch []Contact
 	for _, candidate := range candidates.contacts {
 		if !queried[candidate.ID.String()] {
@@ -80,17 +80,6 @@ func nextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha
 		}
 	}
 	return batch
-}
-
-// Public wrapper for nextUnqueried to be used in tests
-// This is needed since nextUnqueried is unexported and cannot be accessed from outside the package :)
-// Alternative was to move kademlia_test to same package
-func NextUnqueried(
-	candidates *ContactCandidates,
-	queried map[string]bool,
-	alpha int,
-) []Contact {
-	return nextUnqueried(candidates, queried, alpha)
 }
 
 // sends a FindNode request to each contact in the batch concurrently and collects the results.
