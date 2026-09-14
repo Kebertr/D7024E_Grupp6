@@ -5,8 +5,8 @@ import (
 )
 
 const (
-	alpha = 1 // Number of parallel queries
-	k     = bucketSize
+	alpha         = 1 // Number of parallel queries
+	shortListSize = bucketSize
 )
 
 type Kademlia struct {
@@ -22,7 +22,7 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 		return nil, errors.New("invalid lookup arguments")
 	}
 
-	closest := kademlia.RoutingTable.FindClosestContacts(target.ID, k)
+	closest := kademlia.RoutingTable.FindClosestContacts(target.ID, shortListSize)
 	candidates := &ContactCandidates{}
 	candidates.Append(closest)
 	queried := make(map[string]bool)
@@ -48,7 +48,7 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 					continue
 				}
 
-				mergeClosest(candidates, contact, target.ID, k)
+				mergeClosest(candidates, contact, target.ID, shortListSize)
 			}
 		}
 	}
@@ -146,12 +146,12 @@ func mergeClosest(
 	}
 }
 
-// This get called in listenserver and gets the message. It will get the k closest contacts and then call for FindReceiverNodes
+// This get called in listenserver and gets the message. It will get the shortListSize closest contacts and then call for FindReceiverNodes
 func (kademlia *Kademlia) FindReceiverNodes(msg Message) error {
 	if msg.Target == nil {
 		return errors.New("We need a target ID")
 	}
-	contacts := kademlia.RoutingTable.FindClosestContacts(msg.Target, k)
+	contacts := kademlia.RoutingTable.FindClosestContacts(msg.Target, shortListSize)
 
 	return kademlia.Network.FindReceiverNodes(msg.From, contacts)
 }
