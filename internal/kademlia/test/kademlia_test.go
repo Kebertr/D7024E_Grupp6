@@ -1,10 +1,9 @@
 package kademlia_test
 
 import (
-	"context"
 	"testing"
 
-	kademlia "github.com/RasmusKebert/d7024e-tutorial/internal/kademlia"
+	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
 )
 
 // Tests create a Kademlia node with a routing table and network
@@ -42,7 +41,7 @@ func TestLookupContactReturnsClosestContacts(t *testing.T) {
 		node.RoutingTable.AddContact(contact)
 	}
 
-	result, err := node.LookupContact(context.Background(), &target)
+	result, err := node.LookupContact(&target)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -91,7 +90,7 @@ func TestLookupContactReturnsNilForInvalidInput(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			result, _ := test.node.LookupContact(context.Background(), test.target)
+			result, _ := test.node.LookupContact(test.target)
 			if result != nil {
 				t.Fatalf("expected nil result, got %v", result)
 			}

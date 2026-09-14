@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	kademlia "github.com/RasmusKebert/d7024e-tutorial/internal/kademlia"
+	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
 )
 
 // FIXME: This test doesn't actually test anything. There is only one assertion
