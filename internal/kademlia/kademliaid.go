@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"encoding/hex"
+	"fmt"
 	"math/rand"
 )
 
@@ -16,13 +17,17 @@ func NewKademliaID(data string) *KademliaID {
 	decoded, _ := hex.DecodeString(data)
 
 	newKademliaID := KademliaID{}
-	for i := 0; i < IDLength; i++ {
-		newKademliaID[i] = decoded[i]
+
+	if decodedLength := len(decoded); decodedLength != IDLength {
+		panic(fmt.Sprintf(
+			"Invalid KademliaID length: expected %d, got %d",
+			IDLength,
+			decodedLength,
+		))
 	}
 
-	// Returns error message if decoded length is wrong
-	if decodedLength := len(decoded); decodedLength != IDLength {
-		panic("Invalid KademliaID length: expected " + string(IDLength) + ", got " + string(decodedLength))
+	for i := 0; i < IDLength; i++ {
+		newKademliaID[i] = decoded[i]
 	}
 	return &newKademliaID
 }

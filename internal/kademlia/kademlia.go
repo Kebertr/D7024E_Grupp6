@@ -5,8 +5,8 @@ import (
 )
 
 const (
-	alpha = 1 // Number of parallel queries
-	k     = bucketSize
+	alpha         = 1 // Number of parallel queries
+	shortListSize = bucketSize
 )
 
 type Kademlia struct {
@@ -22,19 +22,19 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 		return nil, errors.New("invalid lookup arguments")
 	}
 
-	closest := kademlia.RoutingTable.FindClosestContacts(target.ID, k)
+	closest := kademlia.RoutingTable.FindClosestContacts(target.ID, shortListSize)
 	candidates := &ContactCandidates{}
 	candidates.Append(closest)
 	queried := make(map[string]bool)
 
 	for {
-		batch := nextUnqueried(candidates, queried, alpha)
+		batch := NextUnqueried(candidates, queried, alpha)
 		// Stops when every candidate has been queried
 		if len(batch) == 0 {
 			break
 		}
 
-		results, err := queryBatch(kademlia.Network, batch, target.ID)
+		results, err := QueryBatch(kademlia.Network, batch, target.ID)
 		// Stop if network query fails
 		if err != nil {
 			return nil, err
@@ -48,7 +48,7 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 					continue
 				}
 
-				mergeClosest(candidates, contact, target.ID, k)
+				MergeClosest(candidates, contact, target.ID, shortListSize)
 			}
 		}
 	}
@@ -68,7 +68,7 @@ func (kademlia *Kademlia) Store(data []byte) {
 // ------------------
 // returns the next batch of unqueried contacts from the candidates list, up to the specified alpha value.
 // It also marks the contacts as queried in the provided map.
-func nextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha int) []Contact {
+func NextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha int) []Contact {
 	var batch []Contact
 	for _, candidate := range candidates.contacts {
 		if !queried[candidate.ID.String()] {
@@ -83,7 +83,7 @@ func nextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha
 }
 
 // sends a FindNode request to each contact in the batch concurrently and collects the results.
-func queryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Contact, error) {
+func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Contact, error) {
 	results := make([][]Contact, len(batch))
 	errCh := make(chan error, len(batch))
 	resultCh := make(chan struct {
@@ -119,7 +119,7 @@ func queryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 }
 
 // merges a new contact into the candidates list, keeping only the closest 'count' contacts to the targetID.
-func mergeClosest(
+func MergeClosest(
 	candidates *ContactCandidates,
 	newContact Contact,
 	targetID *KademliaID,
@@ -146,12 +146,12 @@ func mergeClosest(
 	}
 }
 
-// This get called in listenserver and gets the message. It will get the k closest contacts and then call for FindReceiverNodes
+// This get called in listenserver and gets the message. It will get the shortListSize closest contacts and then call for FindReceiverNodes
 func (kademlia *Kademlia) FindReceiverNodes(msg Message) error {
 	if msg.Target == nil {
 		return errors.New("We need a target ID")
 	}
-	contacts := kademlia.RoutingTable.FindClosestContacts(msg.Target, k)
+	contacts := kademlia.RoutingTable.FindClosestContacts(msg.Target, shortListSize)
 
 	return kademlia.Network.FindReceiverNodes(msg.From, contacts)
 }
