@@ -264,3 +264,98 @@ func TestInvalidLookupContact(t *testing.T) {
 		})
 	}
 }
+
+func TestQueryBatch(t *testing.T) {
+	transport := kademlia.NewMockNetwork()
+	network, err := kademlia.InitNetwork(transport, "node1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unregistered := kademlia.NewContact(
+		kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"),
+		"missing",
+	)
+
+	_, err = kademlia.QueryBatch(
+		network,
+		[]kademlia.Contact{unregistered},
+		unregistered.ID,
+	)
+
+	if err == nil {
+		t.Fatal("expected query error")
+	}
+}
+
+func TestMergeClosest(t *testing.T) {
+	targetID := kademlia.NewKademliaID(
+		"0000000000000000000000000000000000000000000000000000000000000000",
+	)
+
+	t.Run("nil contact ID", func(t *testing.T) {
+		candidates := &kademlia.ContactCandidates{}
+
+		kademlia.MergeClosest(
+			candidates,
+			kademlia.Contact{Address: "missing"},
+			targetID,
+			2,
+		)
+
+		if candidates.Len() != 0 {
+			t.Fatalf("expected 0 candidates, got %d", candidates.Len())
+		}
+	})
+
+	t.Run("duplicate contact", func(t *testing.T) {
+		contact := kademlia.NewContact(
+			kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+			"node1",
+		)
+
+		candidates := &kademlia.ContactCandidates{}
+		candidates.Append([]kademlia.Contact{contact})
+
+		kademlia.MergeClosest(candidates, contact, targetID, 2)
+
+		if candidates.Len() != 1 {
+			t.Fatalf("expected 1 candidate, got %d", candidates.Len())
+		}
+	})
+
+	t.Run("shortlist short", func(t *testing.T) {
+		contact1 := kademlia.NewContact(
+			kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+			"node1",
+		)
+		contact2 := kademlia.NewContact(
+			kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"),
+			"node2",
+		)
+		contact3 := kademlia.NewContact(
+			kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000003"),
+			"node3",
+		)
+
+		candidates := &kademlia.ContactCandidates{}
+		candidates.Append([]kademlia.Contact{contact1, contact2})
+
+		existing := candidates.GetContacts(2)
+		for index := range existing {
+			existing[index].CalcDistance(targetID)
+		}
+
+		kademlia.MergeClosest(candidates, contact3, targetID, 2)
+
+		if candidates.Len() != 2 {
+			t.Fatalf("expected 2 candidates, got %d", candidates.Len())
+		}
+
+		result := candidates.GetContacts(2)
+		if !result[0].ID.Equals(contact1.ID) ||
+			!result[1].ID.Equals(contact2.ID) {
+			t.Fatal("expected the two closest contacts to remain")
+		}
+	})
+}

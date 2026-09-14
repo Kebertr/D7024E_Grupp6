@@ -34,7 +34,7 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 			break
 		}
 
-		results, err := queryBatch(kademlia.Network, batch, target.ID)
+		results, err := QueryBatch(kademlia.Network, batch, target.ID)
 		// Stop if network query fails
 		if err != nil {
 			return nil, err
@@ -48,7 +48,7 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 					continue
 				}
 
-				mergeClosest(candidates, contact, target.ID, shortListSize)
+				MergeClosest(candidates, contact, target.ID, shortListSize)
 			}
 		}
 	}
@@ -83,7 +83,7 @@ func NextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha
 }
 
 // sends a FindNode request to each contact in the batch concurrently and collects the results.
-func queryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Contact, error) {
+func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Contact, error) {
 	results := make([][]Contact, len(batch))
 	errCh := make(chan error, len(batch))
 	resultCh := make(chan struct {
@@ -119,7 +119,7 @@ func queryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 }
 
 // merges a new contact into the candidates list, keeping only the closest 'count' contacts to the targetID.
-func mergeClosest(
+func MergeClosest(
 	candidates *ContactCandidates,
 	newContact Contact,
 	targetID *KademliaID,
