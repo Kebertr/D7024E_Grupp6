@@ -82,6 +82,17 @@ func nextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha
 	return batch
 }
 
+// Public wrapper for nextUnqueried to be used in tests
+// This is needed since nextUnqueried is unexported and cannot be accessed from outside the package :)
+// Alternative was to move kademlia_test to same package
+func NextUnqueried(
+	candidates *ContactCandidates,
+	queried map[string]bool,
+	alpha int,
+) []Contact {
+	return nextUnqueried(candidates, queried, alpha)
+}
+
 // sends a FindNode request to each contact in the batch concurrently and collects the results.
 func queryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Contact, error) {
 	results := make([][]Contact, len(batch))

@@ -56,3 +56,18 @@ func (bucket *bucket) GetContactAndCalcDistance(target *KademliaID) []Contact {
 func (bucket *bucket) Len() int {
 	return bucket.list.Len()
 }
+
+// Testing bucket, Used to export API
+type Bucket struct {
+	list *list.List
+}
+
+func NewBucket() *Bucket {
+	return &Bucket{
+		list: list.New(),
+	}
+}
+
+func (bucket *Bucket) Len() int {
+	return bucket.list.Len()
+}

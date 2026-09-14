@@ -115,3 +115,17 @@ func initNetwork(transport Transport, address Address) (*Network, error) {
 
 	return network, nil
 }
+
+// These two functions are needed for testing.
+// SInce testing is done in a external package we need external wrapper methods around existing helpers
+//
+
+// NewNetwork initializes a network using the provided transport and address.
+func NewNetwork(transport Transport, address Address) (*Network, error) {
+	return initNetwork(transport, address)
+}
+
+// Start starts receiving and processing network messages.
+func (network *Network) Start(kademlia *Kademlia) {
+	network.serverListen(kademlia)
+}
