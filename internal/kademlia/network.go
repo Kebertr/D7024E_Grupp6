@@ -63,7 +63,7 @@ func (network *Network) SendStoreMessage(data []byte) {
 }
 
 // This is for receiving each message and send it to the right function
-func (network *Network) serverListen(kademlia *Kademlia) {
+func (network *Network) ServerListen(kademlia *Kademlia) {
 	go func() {
 		for {
 			msg, err := network.listener.Recv()
@@ -99,8 +99,7 @@ func (network *Network) FindReceiverNodes(toAddress Address, contacts []Contact)
 	return nil
 }
 
-// Initializes the network. Good for not initalizing it in every test
-func initNetwork(transport Transport, address Address) (*Network, error) {
+func InitNetwork(transport Transport, address Address) (*Network, error) {
 	listener, err := transport.Listen(address)
 	if err != nil {
 		return nil, err
@@ -114,18 +113,4 @@ func initNetwork(transport Transport, address Address) (*Network, error) {
 	}
 
 	return network, nil
-}
-
-// These two functions are needed for testing.
-// SInce testing is done in a external package we need external wrapper methods around existing helpers
-//
-
-// NewNetwork initializes a network using the provided transport and address.
-func NewNetwork(transport Transport, address Address) (*Network, error) {
-	return initNetwork(transport, address)
-}
-
-// Start starts receiving and processing network messages.
-func (network *Network) Start(kademlia *Kademlia) {
-	network.serverListen(kademlia)
 }

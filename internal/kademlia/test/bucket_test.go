@@ -19,12 +19,12 @@ func TestNewBucket(t *testing.T) {
 	}
 }
 
-/* func testAddContactToBucket(t *testing.T) {
+func TestAddContact(t *testing.T) {
 	bucket := kademlia.NewBucket()
 
 	contact := kademlia.NewContact(
 		kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
-		"localhost:8000",
+		"node1",
 	)
 
 	bucket.AddContact(contact)
@@ -33,13 +33,12 @@ func TestNewBucket(t *testing.T) {
 		t.Fatalf("expected bucket to have size 1, got %d", bucket.Len())
 	}
 
-	if !bucket.Contacts[0].ID.Equals(contact.ID) {
+	addedContact := bucket.List.Front().Value.(kademlia.Contact)
+
+	if !addedContact.ID.Equals(contact.ID) {
 		t.Fatalf("expected contact ID to be %s, got %s",
-			contact.ID.String(), bucket.Contacts[0].ID.String())
+			contact.ID.String(), addedContact.ID.String())
 	}
 }
 
-
-func TestGetBucketAndCalcDistance (t *testing.T) { }
-
-*/
+// Cant test GetContactAndCalcDistance without making distance public

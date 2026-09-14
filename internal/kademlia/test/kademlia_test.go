@@ -81,22 +81,22 @@ func TestLookupContact(t *testing.T) {
 	routing2.AddContact(node3)
 	routing3.AddContact(node4)
 
-	network1, err := kademlia.NewNetwork(mock, node1.Address)
+	network1, err := kademlia.InitNetwork(mock, node1.Address)
 	if err != nil {
 		t.Error(err)
 	}
 
-	network2, err := kademlia.NewNetwork(mock, node2.Address)
+	network2, err := kademlia.InitNetwork(mock, node2.Address)
 	if err != nil {
 		t.Error(err)
 	}
 
-	network3, err := kademlia.NewNetwork(mock, node3.Address)
+	network3, err := kademlia.InitNetwork(mock, node3.Address)
 	if err != nil {
 		t.Error(err)
 	}
 
-	network4, err := kademlia.NewNetwork(mock, node4.Address)
+	network4, err := kademlia.InitNetwork(mock, node4.Address)
 	if err != nil {
 		t.Error(err)
 	}
@@ -129,10 +129,10 @@ func TestLookupContact(t *testing.T) {
 		Data:         make(map[string][]byte),
 	}
 
-	kademlia1.Network.Start(kademlia1)
-	kademlia2.Network.Start(kademlia2)
-	kademlia3.Network.Start(kademlia3)
-	kademlia4.Network.Start(kademlia4)
+	kademlia1.Network.ServerListen(kademlia1)
+	kademlia2.Network.ServerListen(kademlia2)
+	kademlia3.Network.ServerListen(kademlia3)
+	kademlia4.Network.ServerListen(kademlia4)
 
 	result, err := kademlia1.LookupContact(&node4)
 	if err != nil {
@@ -168,7 +168,7 @@ func TestSevenNodes(t *testing.T) {
 	networks := make([]*kademlia.Network, len(contacts))
 	nodes := make([]*kademlia.Kademlia, len(contacts))
 	for index, contact := range contacts {
-		network, err := kademlia.NewNetwork(transport, contact.Address)
+		network, err := kademlia.InitNetwork(transport, contact.Address)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -189,7 +189,7 @@ func TestSevenNodes(t *testing.T) {
 	nodes[5].RoutingTable.AddContact(contacts[6])
 
 	for index, network := range networks {
-		network.Start(nodes[index])
+		network.ServerListen(nodes[index])
 	}
 
 	result, err := nodes[0].LookupContact(&contacts[3])

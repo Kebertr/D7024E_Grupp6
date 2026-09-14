@@ -17,12 +17,12 @@ func TestSendFindContactMessage(t *testing.T) {
 	routing2.AddContact(node3)
 	routing2.AddContact(node4)
 
-	network1, err := initNetwork(mock, node1.Address)
+	network1, err := InitNetwork(mock, node1.Address)
 	if err != nil {
 		t.Error(err)
 	}
 
-	network2, err := initNetwork(mock, node2.Address)
+	network2, err := InitNetwork(mock, node2.Address)
 	if err != nil {
 		t.Error(err)
 	}
@@ -41,8 +41,8 @@ func TestSendFindContactMessage(t *testing.T) {
 		Data:         make(map[string][]byte),
 	}
 
-	kademlia1.Network.serverListen(kademlia1)
-	kademlia2.Network.serverListen(kademlia2)
+	kademlia1.Network.ServerListen(kademlia1)
+	kademlia2.Network.ServerListen(kademlia2)
 
 	result, err := network1.SendFindContactMessage(&node2, node4.ID)
 	if err != nil {
