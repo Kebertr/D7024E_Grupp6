@@ -145,3 +145,13 @@ func mergeClosest(
 		candidates.contacts = candidates.contacts[:count]
 	}
 }
+
+// This get called in listenserver and gets the message. It will get the k closest contacts and then call for FindReceiverNodes
+func (kademlia *Kademlia) FindReceiverNodes(msg Message) error {
+	if msg.Target == nil {
+		return errors.New("We need a target ID")
+	}
+	contacts := kademlia.RoutingTable.FindClosestContacts(msg.Target, k)
+
+	return kademlia.Network.FindReceiverNodes(msg.From, contacts)
+}

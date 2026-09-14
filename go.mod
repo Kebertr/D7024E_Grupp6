@@ -1,4 +1,4 @@
-module github.com/RasmusKebert/d7024e-tutorial
+module github.com/RasmusKebert/D7024E_Grupp6
 
 go 1.23.5
 

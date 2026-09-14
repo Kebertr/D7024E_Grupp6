@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/RasmusKebert/d7024e-tutorial/internal/kademlia"
+	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
 )
 
 var (
