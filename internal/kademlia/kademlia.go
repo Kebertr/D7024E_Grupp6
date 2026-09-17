@@ -27,29 +27,42 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 	candidates.Append(closest)
 	queried := make(map[string]bool)
 
+	// Now compares the shortlist IDs to see if they've improved
+	// If improved, we continue the loop, otherwise we break and return the shortlist
 	for {
 		batch := NextUnqueried(candidates, queried, alpha)
-		// Stops when every candidate has been queried
 		if len(batch) == 0 {
 			break
 		}
+		before := make([]*KademliaID, len(candidates.contacts))
+		for i, candidate := range candidates.contacts {
+			before[i] = candidate.ID
+		}
 
 		results, err := QueryBatch(kademlia.Network, batch, target.ID)
-		// Stop if network query fails
 		if err != nil {
 			return nil, err
 		}
 
-		// Continues until all candidates have been queried
 		for i, result := range results {
 			kademlia.RoutingTable.AddContact(batch[i])
 			for _, contact := range result {
-				if contact.ID == nil {
-					continue
-				}
-
 				MergeClosest(candidates, contact, target.ID, shortListSize)
 			}
+		}
+
+		improved := len(before) != len(candidates.contacts)
+		if !improved {
+			for i, candidate := range candidates.contacts {
+				if !candidate.ID.Equals(before[i]) {
+					improved = true
+					break
+				}
+			}
+		}
+
+		if !improved {
+			break
 		}
 	}
 
