@@ -138,7 +138,6 @@ func TestLookupContact(t *testing.T) {
 	worked := false
 
 	for _, contact := range result {
-		t.Log(contact)
 		if contact.ID.Equals(node4.ID) {
 			worked = true
 		}

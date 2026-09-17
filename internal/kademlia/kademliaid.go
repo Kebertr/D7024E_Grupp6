@@ -20,10 +20,6 @@ func NewKademliaID(data string) *KademliaID {
 		newKademliaID[i] = decoded[i]
 	}
 
-	// Returns error message if decoded length is wrong
-	if decodedLength := len(decoded); decodedLength != IDLength {
-		panic("Invalid KademliaID length: expected " + string(IDLength) + ", got " + string(decodedLength))
-	}
 	return &newKademliaID
 }
 

@@ -153,5 +153,5 @@ func (kademlia *Kademlia) FindReceiverNodes(msg Message) error {
 	}
 	contacts := kademlia.RoutingTable.FindClosestContacts(msg.Target, k)
 
-	return kademlia.Network.FindReceiverNodes(msg.From, contacts)
+	return kademlia.Network.FindReceiverNodes(msg.MessageId, msg.From, contacts)
 }
