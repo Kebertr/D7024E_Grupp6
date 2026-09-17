@@ -1,29 +1,25 @@
-package kademlia_test
+package kademlia
 
-import (
-	"testing"
-
-	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
-)
+import "testing"
 
 func TestNewBucket(t *testing.T) {
-	bucket := kademlia.NewBucket()
+	bucket := NewBucket()
 
 	if bucket.Len() != 0 {
 		t.Fatalf("expected new bucket to have size 0, got %d", bucket.Len())
 	}
 
-	if bucket.Len() > kademlia.BucketSize {
+	if bucket.Len() > BucketSize {
 		t.Fatalf("expected bucket size to be at most %d, got %d",
-			kademlia.BucketSize, bucket.Len())
+			BucketSize, bucket.Len())
 	}
 }
 
 func TestAddContact(t *testing.T) {
-	bucket := kademlia.NewBucket()
+	bucket := NewBucket()
 
-	contact := kademlia.NewContact(
-		kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+	contact := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
 		"node1",
 	)
 
@@ -33,7 +29,7 @@ func TestAddContact(t *testing.T) {
 		t.Fatalf("expected bucket to have size 1, got %d", bucket.Len())
 	}
 
-	addedContact := bucket.List.Front().Value.(kademlia.Contact)
+	addedContact := bucket.List.Front().Value.(Contact)
 
 	if !addedContact.ID.Equals(contact.ID) {
 		t.Fatalf("expected contact ID to be %s, got %s",

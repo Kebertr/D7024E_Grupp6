@@ -1,30 +1,28 @@
-package kademlia_test
+package kademlia
 
 import (
 	"testing"
-
-	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
 )
 
 func TestNextUnqueried(t *testing.T) {
-	node1 := kademlia.NewContact(kademlia.NewKademliaID(
+	node1 := NewContact(NewKademliaID(
 		"0000000000000000000000000000000000000000000000000000000000000001",
 	), "node1")
 
-	node2 := kademlia.NewContact(kademlia.NewKademliaID(
+	node2 := NewContact(NewKademliaID(
 		"0000000000000000000000000000000000000000000000000000000000000002",
 	), "node2")
 
-	node3 := kademlia.NewContact(kademlia.NewKademliaID(
+	node3 := NewContact(NewKademliaID(
 		"0000000000000000000000000000000000000000000000000000000000000003",
 	), "node3")
 
-	candidates := &kademlia.ContactCandidates{}
-	candidates.Append([]kademlia.Contact{node1, node2, node3})
+	candidates := &ContactCandidates{}
+	candidates.Append([]Contact{node1, node2, node3})
 
 	queried := map[string]bool{}
 
-	result := kademlia.NextUnqueried(candidates, queried, 1)
+	result := NextUnqueried(candidates, queried, 1)
 
 	if len(result) != 1 {
 		t.Fatalf("We expected length of 1 since alpha is 0")
@@ -36,20 +34,20 @@ func TestNextUnqueried(t *testing.T) {
 }
 
 func TestNextUnqueriedNoone(t *testing.T) {
-	node1 := kademlia.NewContact(kademlia.NewKademliaID(
+	node1 := NewContact(NewKademliaID(
 		"0000000000000000000000000000000000000000000000000000000000000001",
 	), "node1")
 
-	node2 := kademlia.NewContact(kademlia.NewKademliaID(
+	node2 := NewContact(NewKademliaID(
 		"0000000000000000000000000000000000000000000000000000000000000002",
 	), "node2")
 
-	node3 := kademlia.NewContact(kademlia.NewKademliaID(
+	node3 := NewContact(NewKademliaID(
 		"0000000000000000000000000000000000000000000000000000000000000003",
 	), "node3")
 
-	candidates := &kademlia.ContactCandidates{}
-	candidates.Append([]kademlia.Contact{node1, node2, node3})
+	candidates := &ContactCandidates{}
+	candidates.Append([]Contact{node1, node2, node3})
 
 	queried := map[string]bool{
 		node1.ID.String(): true,
@@ -57,7 +55,7 @@ func TestNextUnqueriedNoone(t *testing.T) {
 		node3.ID.String(): true,
 	}
 
-	result := kademlia.NextUnqueried(candidates, queried, 1)
+	result := NextUnqueried(candidates, queried, 1)
 
 	if len(result) != 0 {
 		t.Fatalf("We expected length of 0 since all already are queried ")
@@ -65,64 +63,64 @@ func TestNextUnqueriedNoone(t *testing.T) {
 }
 
 func TestLookupContact(t *testing.T) {
-	mock := kademlia.NewMockNetwork()
+	mock := NewMockNetwork()
 
-	node1 := kademlia.NewContact(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
-	node2 := kademlia.NewContact(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2")
-	node3 := kademlia.NewContact(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000003"), "node3")
-	node4 := kademlia.NewContact(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000004"), "node4")
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
+	node2 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2")
+	node3 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000003"), "node3")
+	node4 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000004"), "node4")
 
-	routing1 := kademlia.NewRoutingTable(node1)
-	routing2 := kademlia.NewRoutingTable(node2)
-	routing3 := kademlia.NewRoutingTable(node3)
-	routing4 := kademlia.NewRoutingTable(node4)
+	routing1 := NewRoutingTable(node1)
+	routing2 := NewRoutingTable(node2)
+	routing3 := NewRoutingTable(node3)
+	routing4 := NewRoutingTable(node4)
 
 	routing1.AddContact(node2)
 	routing2.AddContact(node3)
 	routing3.AddContact(node4)
 
-	network1, err := kademlia.InitNetwork(mock, node1.Address)
+	network1, err := InitNetwork(mock, node1.Address)
 	if err != nil {
 		t.Error(err)
 	}
 
-	network2, err := kademlia.InitNetwork(mock, node2.Address)
+	network2, err := InitNetwork(mock, node2.Address)
 	if err != nil {
 		t.Error(err)
 	}
 
-	network3, err := kademlia.InitNetwork(mock, node3.Address)
+	network3, err := InitNetwork(mock, node3.Address)
 	if err != nil {
 		t.Error(err)
 	}
 
-	network4, err := kademlia.InitNetwork(mock, node4.Address)
+	network4, err := InitNetwork(mock, node4.Address)
 	if err != nil {
 		t.Error(err)
 	}
 
-	kademlia1 := &kademlia.Kademlia{
+	kademlia1 := &Kademlia{
 		Contact:      node1,
 		RoutingTable: routing1,
 		Network:      network1,
 		Data:         make(map[string][]byte),
 	}
 
-	kademlia2 := &kademlia.Kademlia{
+	kademlia2 := &Kademlia{
 		Contact:      node2,
 		RoutingTable: routing2,
 		Network:      network2,
 		Data:         make(map[string][]byte),
 	}
 
-	kademlia3 := &kademlia.Kademlia{
+	kademlia3 := &Kademlia{
 		Contact:      node3,
 		RoutingTable: routing3,
 		Network:      network3,
 		Data:         make(map[string][]byte),
 	}
 
-	kademlia4 := &kademlia.Kademlia{
+	kademlia4 := &Kademlia{
 		Contact:      node4,
 		RoutingTable: routing4,
 		Network:      network4,
@@ -154,28 +152,28 @@ func TestLookupContact(t *testing.T) {
 }
 
 func TestSevenNodes(t *testing.T) {
-	transport := kademlia.NewMockNetwork()
-	contacts := []kademlia.Contact{
-		kademlia.NewContact(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1"),
-		kademlia.NewContact(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2"),
-		kademlia.NewContact(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000003"), "node3"),
-		kademlia.NewContact(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000004"), "node4"),
-		kademlia.NewContact(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000005"), "node5"),
-		kademlia.NewContact(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000006"), "node6"),
-		kademlia.NewContact(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000007"), "node7"),
+	transport := NewMockNetwork()
+	contacts := []Contact{
+		NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1"),
+		NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2"),
+		NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000003"), "node3"),
+		NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000004"), "node4"),
+		NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000005"), "node5"),
+		NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000006"), "node6"),
+		NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000007"), "node7"),
 	}
 
-	networks := make([]*kademlia.Network, len(contacts))
-	nodes := make([]*kademlia.Kademlia, len(contacts))
+	networks := make([]*Network, len(contacts))
+	nodes := make([]*Kademlia, len(contacts))
 	for index, contact := range contacts {
-		network, err := kademlia.InitNetwork(transport, contact.Address)
+		network, err := InitNetwork(transport, contact.Address)
 		if err != nil {
 			t.Fatal(err)
 		}
 		networks[index] = network
-		nodes[index] = &kademlia.Kademlia{
+		nodes[index] = &Kademlia{
 			Contact:      contact,
-			RoutingTable: kademlia.NewRoutingTable(contact),
+			RoutingTable: NewRoutingTable(contact),
 			Network:      network,
 		}
 	}
@@ -230,28 +228,28 @@ func TestSevenNodes(t *testing.T) {
 }
 
 func TestInvalidLookupContact(t *testing.T) {
-	me := kademlia.NewContact(
-		kademlia.NewKademliaID("1000000000000000000000000000000000000000000000000000000000000000"),
+	me := NewContact(
+		NewKademliaID("1000000000000000000000000000000000000000000000000000000000000000"),
 		"localhost:8000",
 	)
-	node := &kademlia.Kademlia{
+	node := Kademlia{
 		Contact:      me,
-		RoutingTable: kademlia.NewRoutingTable(me),
-		Network:      &kademlia.Network{},
+		RoutingTable: NewRoutingTable(me),
+		Network:      &Network{},
 	}
 
 	tests := []struct {
 		name   string
-		node   *kademlia.Kademlia
-		target *kademlia.Contact
+		node   *Kademlia
+		target *Contact
 	}{
 		{name: "nil node", node: nil, target: &me},
-		{name: "nil routing table", node: &kademlia.Kademlia{}, target: &me},
-		{name: "nil target", node: node, target: nil},
+		{name: "nil routing table", node: &Kademlia{}, target: &me},
+		{name: "nil target", node: &node, target: nil},
 		{
 			name:   "nil target ID",
-			node:   node,
-			target: &kademlia.Contact{Address: "localhost:9000"},
+			node:   &node,
+			target: &Contact{Address: "localhost:9000"},
 		},
 	}
 
@@ -266,20 +264,20 @@ func TestInvalidLookupContact(t *testing.T) {
 }
 
 func TestQueryBatch(t *testing.T) {
-	transport := kademlia.NewMockNetwork()
-	network, err := kademlia.InitNetwork(transport, "node1")
+	transport := NewMockNetwork()
+	network, err := InitNetwork(transport, "node1")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	unregistered := kademlia.NewContact(
-		kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"),
+	unregistered := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"),
 		"missing",
 	)
 
-	_, err = kademlia.QueryBatch(
+	_, err = QueryBatch(
 		network,
-		[]kademlia.Contact{unregistered},
+		[]Contact{unregistered},
 		unregistered.ID,
 	)
 
@@ -289,16 +287,16 @@ func TestQueryBatch(t *testing.T) {
 }
 
 func TestMergeClosest(t *testing.T) {
-	targetID := kademlia.NewKademliaID(
+	targetID := NewKademliaID(
 		"0000000000000000000000000000000000000000000000000000000000000000",
 	)
 
 	t.Run("nil contact ID", func(t *testing.T) {
-		candidates := &kademlia.ContactCandidates{}
+		candidates := &ContactCandidates{}
 
-		kademlia.MergeClosest(
+		MergeClosest(
 			candidates,
-			kademlia.Contact{Address: "missing"},
+			Contact{Address: "missing"},
 			targetID,
 			2,
 		)
@@ -309,15 +307,15 @@ func TestMergeClosest(t *testing.T) {
 	})
 
 	t.Run("duplicate contact", func(t *testing.T) {
-		contact := kademlia.NewContact(
-			kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+		contact := NewContact(
+			NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
 			"node1",
 		)
 
-		candidates := &kademlia.ContactCandidates{}
-		candidates.Append([]kademlia.Contact{contact})
+		candidates := &ContactCandidates{}
+		candidates.Append([]Contact{contact})
 
-		kademlia.MergeClosest(candidates, contact, targetID, 2)
+		MergeClosest(candidates, contact, targetID, 2)
 
 		if candidates.Len() != 1 {
 			t.Fatalf("expected 1 candidate, got %d", candidates.Len())
@@ -325,28 +323,28 @@ func TestMergeClosest(t *testing.T) {
 	})
 
 	t.Run("shortlist short", func(t *testing.T) {
-		contact1 := kademlia.NewContact(
-			kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+		contact1 := NewContact(
+			NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
 			"node1",
 		)
-		contact2 := kademlia.NewContact(
-			kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"),
+		contact2 := NewContact(
+			NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"),
 			"node2",
 		)
-		contact3 := kademlia.NewContact(
-			kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000003"),
+		contact3 := NewContact(
+			NewKademliaID("0000000000000000000000000000000000000000000000000000000000000003"),
 			"node3",
 		)
 
-		candidates := &kademlia.ContactCandidates{}
-		candidates.Append([]kademlia.Contact{contact1, contact2})
+		candidates := &ContactCandidates{}
+		candidates.Append([]Contact{contact1, contact2})
 
 		existing := candidates.GetContacts(2)
 		for index := range existing {
 			existing[index].CalcDistance(targetID)
 		}
 
-		kademlia.MergeClosest(candidates, contact3, targetID, 2)
+		MergeClosest(candidates, contact3, targetID, 2)
 
 		if candidates.Len() != 2 {
 			t.Fatalf("expected 2 candidates, got %d", candidates.Len())

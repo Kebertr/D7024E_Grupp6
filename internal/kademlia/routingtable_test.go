@@ -1,26 +1,24 @@
-package kademlia_test
+package kademlia
 
 import (
 	"fmt"
 	"testing"
-
-	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
 )
 
 // FIXME: This test doesn't actually test anything. There is only one assertion
 // that is included as an example.
 
 func TestRoutingTable(t *testing.T) {
-	rt := kademlia.NewRoutingTable(kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFF00000000000000000000000000000000000000000000000000000000"), "localhost:8000"))
+	rt := NewRoutingTable(NewContact(NewKademliaID("FFFFFFFF00000000000000000000000000000000000000000000000000000000"), "localhost:8000"))
 
-	rt.AddContact(kademlia.NewContact(kademlia.NewKademliaID("FFFFFFFF00000000000000000000000000000000000000000000000000000000"), "localhost:8001"))
-	rt.AddContact(kademlia.NewContact(kademlia.NewKademliaID("1111111100000000000000000000000000000000000000000000000000000000"), "localhost:8002"))
-	rt.AddContact(kademlia.NewContact(kademlia.NewKademliaID("1111111200000000000000000000000000000000000000000000000000000000"), "localhost:8002"))
-	rt.AddContact(kademlia.NewContact(kademlia.NewKademliaID("1111111300000000000000000000000000000000000000000000000000000000"), "localhost:8002"))
-	rt.AddContact(kademlia.NewContact(kademlia.NewKademliaID("1111111400000000000000000000000000000000000000000000000000000000"), "localhost:8002"))
-	rt.AddContact(kademlia.NewContact(kademlia.NewKademliaID("2111111400000000000000000000000000000000000000000000000000000000"), "localhost:8002"))
+	rt.AddContact(NewContact(NewKademliaID("FFFFFFFF00000000000000000000000000000000000000000000000000000000"), "localhost:8001"))
+	rt.AddContact(NewContact(NewKademliaID("1111111100000000000000000000000000000000000000000000000000000000"), "localhost:8002"))
+	rt.AddContact(NewContact(NewKademliaID("1111111200000000000000000000000000000000000000000000000000000000"), "localhost:8002"))
+	rt.AddContact(NewContact(NewKademliaID("1111111300000000000000000000000000000000000000000000000000000000"), "localhost:8002"))
+	rt.AddContact(NewContact(NewKademliaID("1111111400000000000000000000000000000000000000000000000000000000"), "localhost:8002"))
+	rt.AddContact(NewContact(NewKademliaID("2111111400000000000000000000000000000000000000000000000000000000"), "localhost:8002"))
 
-	contacts := rt.FindClosestContacts(kademlia.NewKademliaID("2111111400000000000000000000000000000000000000000000000000000000"), 20)
+	contacts := rt.FindClosestContacts(NewKademliaID("2111111400000000000000000000000000000000000000000000000000000000"), 20)
 	for i := range contacts {
 		fmt.Println(contacts[i].String())
 	}
@@ -33,30 +31,30 @@ func TestRoutingTable(t *testing.T) {
 
 // Tests that findClosestContacts actually returns a valid shortList
 func TestFindClosestContactsReturnsClosestContacts(t *testing.T) {
-	me := kademlia.NewContact(
-		kademlia.NewKademliaID(
+	me := NewContact(
+		NewKademliaID(
 			"1000000000000000000000000000000000000000000000000000000000000000",
 		),
 		"localhost:8000",
 	)
 
-	routingTable := kademlia.NewRoutingTable(me)
+	routingTable := NewRoutingTable(me)
 
-	contacts := []kademlia.Contact{
-		kademlia.NewContact(
-			kademlia.NewKademliaID(
+	contacts := []Contact{
+		NewContact(
+			NewKademliaID(
 				"8000000000000000000000000000000000000000000000000000000000000000",
 			),
 			"localhost:8001",
 		),
-		kademlia.NewContact(
-			kademlia.NewKademliaID(
+		NewContact(
+			NewKademliaID(
 				"8001000000000000000000000000000000000000000000000000000000000000",
 			),
 			"localhost:8002",
 		),
-		kademlia.NewContact(
-			kademlia.NewKademliaID(
+		NewContact(
+			NewKademliaID(
 				"9000000000000000000000000000000000000000000000000000000000000000",
 			),
 			"localhost:8003",
@@ -67,7 +65,7 @@ func TestFindClosestContactsReturnsClosestContacts(t *testing.T) {
 		routingTable.AddContact(contact)
 	}
 
-	target := kademlia.NewKademliaID(
+	target := NewKademliaID(
 		"8000000000000000000000000000000000000000000000000000000000000000",
 	)
 
