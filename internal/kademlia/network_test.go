@@ -2,6 +2,60 @@ package kademlia
 
 import "testing"
 
+func TestSendFindPingWrongId(t *testing.T) {
+	mock := NewMockNetwork()
+
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
+	node2 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2")
+
+	routing1 := NewRoutingTable(node1)
+
+	network1, err := initNetwork(mock, node1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	network2, err := initNetwork(mock, node2)
+	if err != nil {
+		t.Error(err)
+	}
+
+	kademlia1 := &Kademlia{
+		Contact:      node1,
+		RoutingTable: routing1,
+		Network:      network1,
+		Data:         make(map[string][]byte),
+	}
+
+	kademlia1.Network.serverListen(kademlia1)
+
+	go func() {
+		_, err := network2.listener.Recv()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		wrongID := createMessageId()
+
+		network1.receive <- Message{
+			MessageId: wrongID,
+			From:      node2,
+			To:        node1.Address,
+			Type:      "PING_RETURN",
+		}
+
+	}()
+	err = network1.SendPingMessage(&node2)
+	if err == nil {
+		t.Error("Expected a missmatch of id")
+	}
+
+	if err.Error() != "The Id do not match" {
+		t.Fatalf("Not the error we expected")
+	}
+}
+
 func TestSendFindContactMessage(t *testing.T) {
 	mock := NewMockNetwork()
 
@@ -97,8 +151,7 @@ func TestSendFindContactWrongId(t *testing.T) {
 			return
 		}
 
-		wrongID := request.MessageId
-		wrongID[0] ^= 1
+		wrongID := createMessageId()
 
 		if err := network2.FindReceiverNodes(wrongID, request.From.Address, nil); err != nil {
 			t.Error(err)
