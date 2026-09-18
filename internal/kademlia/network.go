@@ -35,11 +35,11 @@ type Message struct {
 	Value     []byte
 }
 
-func (network *Network) SendPingMessage(contact *Contact) (bool, error) {
+func (network *Network) SendPingMessage(contact *Contact) error {
 	id := createMessageId()
 
 	if contact == nil {
-		return false, errors.New("There should be a node")
+		return errors.New("There should be a node")
 	}
 
 	msg := Message{
@@ -51,16 +51,16 @@ func (network *Network) SendPingMessage(contact *Contact) (bool, error) {
 
 	err := network.listener.Send(msg)
 	if err != nil {
-		return false, err
+		return err
 	}
 
 	response := <-network.receive
 
 	if response.MessageId != id {
-		return false, errors.New("The Id do not match")
+		return errors.New("The Id do not match")
 	}
 
-	return true, nil
+	return nil
 }
 
 func (network *Network) SendFindContactMessage(contact *Contact, targetId *KademliaID) ([]Contact, error) {

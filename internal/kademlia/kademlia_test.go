@@ -46,6 +46,32 @@ func TestPing(t *testing.T) {
 
 }
 
+func TestPingErrors(t *testing.T) {
+	mock := NewMockNetwork()
+
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
+
+	routing1 := NewRoutingTable(node1)
+
+	network1, err := initNetwork(mock, node1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	kademlia1 := &Kademlia{
+		Contact:      node1,
+		RoutingTable: routing1,
+		Network:      network1,
+		Data:         make(map[string][]byte),
+	}
+
+	result := kademlia1.Ping(nil)
+
+	if result == nil {
+		t.Fatalf("Expected result to be nil. Since there is no destination address")
+	}
+}
+
 func TestNextUnqueried(t *testing.T) {
 	node1 := NewContact(NewKademliaID(
 		"0000000000000000000000000000000000000000000000000000000000000001",

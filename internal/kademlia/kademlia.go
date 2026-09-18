@@ -17,14 +17,10 @@ type Kademlia struct {
 }
 
 func (kademlia *Kademlia) Ping(contact *Contact) error {
-	response, err := kademlia.Network.SendPingMessage(contact)
+	err := kademlia.Network.SendPingMessage(contact)
 
 	if err != nil {
 		return err
-	}
-
-	if response != true {
-		return errors.New("Ping did not work")
 	}
 
 	kademlia.RoutingTable.AddContact(*contact)
