@@ -17,12 +17,12 @@ func TestSendFindContactMessage(t *testing.T) {
 	routing2.AddContact(node3)
 	routing2.AddContact(node4)
 
-	network1, err := initNetwork(mock, node1.Address)
+	network1, err := initNetwork(mock, node1)
 	if err != nil {
 		t.Error(err)
 	}
 
-	network2, err := initNetwork(mock, node2.Address)
+	network2, err := initNetwork(mock, node2)
 	if err != nil {
 		t.Error(err)
 	}
@@ -71,12 +71,12 @@ func TestSendFindContactWrongId(t *testing.T) {
 	routing2.AddContact(node3)
 	routing2.AddContact(node4)
 
-	network1, err := initNetwork(mock, node1.Address)
+	network1, err := initNetwork(mock, node1)
 	if err != nil {
 		t.Error(err)
 	}
 
-	network2, err := initNetwork(mock, node2.Address)
+	network2, err := initNetwork(mock, node2)
 	if err != nil {
 		t.Error(err)
 	}
@@ -100,7 +100,7 @@ func TestSendFindContactWrongId(t *testing.T) {
 		wrongID := request.MessageId
 		wrongID[0] ^= 1
 
-		if err := network2.FindReceiverNodes(wrongID, request.From, nil); err != nil {
+		if err := network2.FindReceiverNodes(wrongID, request.From.Address, nil); err != nil {
 			t.Error(err)
 		}
 	}()
