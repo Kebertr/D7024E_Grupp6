@@ -5,6 +5,8 @@ import (
 	"sync"
 )
 
+type Address = string
+
 type Network struct {
 	transport Transport
 	contact   Contact
