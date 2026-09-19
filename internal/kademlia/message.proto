@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package kademlia;
+
+message Contact {
+    bytes id = 1;
+    string address = 2;
+}
+message Message {
+	bytes MessageId             = 1;
+	Contact From                = 2;
+	string To                   = 3;
+	string Type                 = 4;
+	bytes Target                = 5;    
+	repeated Contact contacts   = 6;  
+	bytes Value                 = 7;     
+}

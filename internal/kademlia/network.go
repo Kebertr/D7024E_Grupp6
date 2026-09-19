@@ -5,8 +5,6 @@ import (
 	"sync"
 )
 
-type Address = string
-
 type Network struct {
 	transport Transport
 	contact   Contact
@@ -15,6 +13,7 @@ type Network struct {
 	wg        sync.WaitGroup
 }
 
+type Address = string
 type messageId [32]byte
 
 type Transport interface {
