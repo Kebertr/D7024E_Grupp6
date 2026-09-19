@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net"
 	"sync"
+
+	"google.golang.org/protobuf/proto"
 )
 
 type realNetwork struct {
@@ -34,17 +36,43 @@ type realConnection struct {
 	conn *net.UDPConn
 }
 
-func (c *realConnection) Send(addr Address, data []byte) error {
-	udpaddr, err := net.ResolveUDPAddr("udp", addr)
+func (c *realConnection) Send(msg Message) error {
+	udpaddr, err := net.ResolveUDPAddr("udp", msg.To)
 	if err != nil {
 		return err
 	}
 
+	msgProto := &MessageProto{
+		MessageId: msg.MessageId[:],
+		From: &ContactProto{
+			Id:      msg.From.ID[:],
+			Address: msg.From.Address,
+		},
+		To:    msg.To,
+		Type:  msg.Type,
+		Value: msg.Value,
+	}
+
+	if msg.Target != nil {
+		msgProto.Target = msg.Target[:]
+	}
+
+	for i := 0; i < len(msg.Contacts); i++ {
+		conProto := &ContactProto{
+			Id:      msg.Contacts[i].ID[:],
+			Address: msg.Contacts[i].Address,
+		}
+		msgProto.Contacts = append(msgProto.Contacts, conProto)
+	}
+
+	data, err := proto.Marshal(msgProto)
+
+	if err != nil {
+		return err
+	}
 	_, senderr := c.conn.WriteToUDP(data, udpaddr)
 
-	if senderr != nil {
-		return senderr
-	}
+	return senderr
 
 }
 
