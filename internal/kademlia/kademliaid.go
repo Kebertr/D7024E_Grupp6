@@ -3,6 +3,7 @@ package kademlia
 import (
 	"encoding/hex"
 	"math/rand"
+	"strconv"
 )
 
 // the static number of bytes in a KademliaID
@@ -22,7 +23,7 @@ func NewKademliaID(data string) *KademliaID {
 
 	// Returns error message if decoded length is wrong
 	if decodedLength := len(decoded); decodedLength != IDLength {
-		panic("Invalid KademliaID length: expected " + string(IDLength) + ", got " + string(decodedLength))
+		panic("Invalid KademliaID length: expected " + strconv.Itoa(IDLength) + ", got " + strconv.Itoa(decodedLength))
 	}
 	return &newKademliaID
 }
