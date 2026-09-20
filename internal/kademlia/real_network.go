@@ -1,7 +1,6 @@
 package kademlia
 
 import (
-	"errors"
 	"net"
 	"sync"
 
@@ -77,37 +76,50 @@ func (c *realConnection) Send(msg Message) error {
 }
 
 func (c *realConnection) Recv() (Message, error) {
-	c.mu.RLock()
-	if c.closed || c.recvCh == nil {
-		c.mu.RUnlock()
-		return Message{}, errors.New("connection not listening")
-	}
-	ch := c.recvCh
-	c.mu.RUnlock()
+	buffer := make([]byte, 1000)
 
-	msg, ok := <-ch
-	if !ok {
-		return Message{}, errors.New("connection closed")
+	var msgProto MessageProto
+
+	n, _, err := c.conn.ReadFromUDP(buffer)
+
+	if err != nil {
+		return Message{}, err
 	}
-	return msg, nil
+
+	err = proto.Unmarshal(buffer[:n], &msgProto)
+
+	if err != nil {
+		return Message{}, err
+	}
+
+	message := Message{
+		MessageId: messageId(msgProto.GetMessageId()),
+		From: Contact{
+			ID:      (*KademliaID)(msgProto.From.Id),
+			Address: msgProto.From.Address,
+		},
+		To:    msgProto.To,
+		Type:  msgProto.GetType(),
+		Value: msgProto.GetValue(),
+	}
+
+	if len(msgProto.Target) > 0 {
+		message.Target = (*KademliaID)(msgProto.GetTarget())
+	}
+
+	for i := 0; i < len(msgProto.GetContacts()); i++ {
+		id := KademliaID(msgProto.GetContacts()[i].GetId())
+		contacts := Contact{
+			ID:      &id,
+			Address: msgProto.Contacts[i].Address,
+		}
+		message.Contacts = append(message.Contacts, contacts)
+	}
+
+	return message, nil
+
 }
 
 func (c *realConnection) Close() error {
-	c.mu.Lock()
-	if c.closed {
-		c.mu.Unlock()
-		return nil // Already closed
-	}
-	c.closed = true
-	c.mu.Unlock()
-
-	c.network.mu.Lock()
-	defer c.network.mu.Unlock()
-
-	if c.recvCh != nil {
-		close(c.recvCh)
-		delete(c.network.listeners, c.addr)
-		c.recvCh = nil
-	}
-	return nil
+	return c.conn.Close()
 }
