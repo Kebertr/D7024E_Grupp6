@@ -2,10 +2,11 @@ package kademlia
 
 import (
 	"errors"
+	sync "sync"
 )
 
 const (
-	alpha         = 1 // Number of parallel queries
+	alpha         = 3 // Number of parallel queries
 	shortListSize = bucketSize
 )
 
@@ -115,8 +116,11 @@ func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 		contacts []Contact
 	}, len(batch))
 
+	var wg sync.WaitGroup
+	wg.Add(len(batch))
 	for i, contact := range batch {
 		go func(i int, contact Contact) {
+			defer wg.Done()
 			contacts, err := network.SendFindContactMessage(&contact, targetID)
 			if err != nil {
 				errCh <- err
@@ -128,6 +132,12 @@ func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 			}{i, contacts}
 		}(i, contact)
 
+	}
+	wg.Wait()
+	select {
+	case err := <-errCh:
+		return nil, err
+	default:
 	}
 
 	for i := 0; i < len(batch); i++ {
