@@ -1,6 +1,7 @@
 package kademlia
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -294,6 +295,20 @@ func TestSevenNodes(t *testing.T) {
 			t.Errorf("contacts are not sorted by XOR distance")
 		}
 	}
+
+	t.Run("closest to target", func(t *testing.T) {
+		fmt.Println("Closest contacts to target:")
+
+		for _, contact := range result {
+			distance := contact.ID.CalcDistance(targetID)
+
+			fmt.Printf(
+				"ID: %s, distance: %s\n",
+				contact.ID.String(),
+				distance.String(),
+			)
+		}
+	})
 }
 
 func TestInvalidLookupContact(t *testing.T) {
