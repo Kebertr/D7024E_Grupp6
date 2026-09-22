@@ -1,6 +1,7 @@
 package kademlia
 
 import (
+	"crypto/sha256"
 	"errors"
 	sync "sync"
 )
@@ -86,7 +87,37 @@ func (kademlia *Kademlia) LookupData(hash string) {
 }
 
 func (kademlia *Kademlia) Store(data []byte) {
-	// TODO
+	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
+		return
+	}
+
+	targetID := hashData(data)
+	target := Contact{ID: targetID}
+	contacts, err := kademlia.LookupContact(&target)
+	if err != nil {
+		return
+	}
+
+	// The node performing the lookup can itself be one of the k closest nodes.
+	candidates := &ContactCandidates{}
+	candidates.Append(contacts)
+	MergeClosest(candidates, kademlia.Contact, targetID, shortListSize)
+	for _, contact := range candidates.GetContacts(candidates.Len()) {
+		if contact.ID.Equals(kademlia.Contact.ID) {
+			if kademlia.Data == nil {
+				kademlia.Data = make(map[string][]byte)
+			}
+			kademlia.Data[targetID.String()] = append([]byte(nil), data...)
+			continue
+		}
+		_ = kademlia.Network.SendStoreMessage(&contact, targetID, data)
+	}
+}
+
+func hashData(data []byte) *KademliaID {
+	hash := sha256.Sum256(data)
+	targetID := KademliaID(hash)
+	return &targetID
 }
 
 // HELPER FUNCTIONS
@@ -206,8 +237,32 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 		kademlia.Network.receive <- msg
 		return nil
 
+	case "STORE":
+		return kademlia.handleStore(msg)
+
+	case "STORE_RESPONSE":
+		kademlia.Network.receive <- msg
+		return nil
+
 	}
 	return errors.New("No of those functions exists")
+}
+
+func (kademlia *Kademlia) handleStore(msg Message) error {
+	if msg.Target == nil {
+		return errors.New("store message has no key")
+	}
+	if kademlia.Data == nil {
+		kademlia.Data = make(map[string][]byte)
+	}
+	kademlia.Data[msg.Target.String()] = append([]byte(nil), msg.Value...)
+
+	return kademlia.Network.listener.Send(Message{
+		MessageId: msg.MessageId,
+		From:      kademlia.Contact,
+		To:        msg.From.Address,
+		Type:      "STORE_RESPONSE",
+	})
 }
 
 func (kademlia *Kademlia) handlePing(msg Message) error {
