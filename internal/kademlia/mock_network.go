@@ -5,8 +5,6 @@ import (
 	"sync"
 )
 
-type Address = string
-
 type mockNetwork struct {
 	mu        sync.RWMutex
 	listeners map[Address]chan Message
@@ -27,15 +25,6 @@ func (n *mockNetwork) Listen(addr Address) (Connection, error) {
 	ch := make(chan Message, 100) // buffered channel
 	n.listeners[addr] = ch
 	return &mockConnection{addr: addr, network: n, recvCh: ch}, nil
-}
-
-func (n *mockNetwork) Dial(addr Address) (Connection, error) {
-	n.mu.RLock()
-	defer n.mu.RUnlock()
-	if _, exists := n.listeners[addr]; !exists {
-		return nil, errors.New("address not found")
-	}
-	return &mockConnection{addr: addr, network: n}, nil
 }
 
 type mockConnection struct {

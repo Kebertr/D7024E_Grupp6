@@ -18,17 +18,6 @@ func NewKademliaID(data string) *KademliaID {
 
 	newKademliaID := KademliaID{}
 
-	if decodedLength := len(decoded); decodedLength != IDLength {
-		panic(fmt.Sprintf(
-			"Invalid KademliaID length: expected %d, got %d",
-			IDLength,
-			decodedLength,
-		))
-	}
-
-	for i := 0; i < IDLength; i++ {
-		newKademliaID[i] = decoded[i]
-	}
 	return &newKademliaID
 }
 

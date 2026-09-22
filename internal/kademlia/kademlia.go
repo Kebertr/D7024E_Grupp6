@@ -16,6 +16,17 @@ type Kademlia struct {
 	Data         map[string][]byte
 }
 
+func (kademlia *Kademlia) Ping(contact *Contact) error {
+	err := kademlia.Network.SendPingMessage(contact)
+
+	if err != nil {
+		return err
+	}
+
+	kademlia.RoutingTable.AddContact(*contact)
+	return nil
+}
+
 func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil ||
 		target == nil || target.ID == nil {
@@ -166,5 +177,39 @@ func (kademlia *Kademlia) FindReceiverNodes(msg Message) error {
 	}
 	contacts := kademlia.RoutingTable.FindClosestContacts(msg.Target, shortListSize)
 
-	return kademlia.Network.FindReceiverNodes(msg.From, contacts)
+	return kademlia.Network.FindReceiverNodes(msg.MessageId, msg.From.Address, contacts)
+}
+
+func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
+	switch msg.Type {
+	case "PING":
+		return kademlia.handlePing(msg)
+		//Add case for err. Also add case for value and so on in the future
+	case "FIND_NODE":
+		return kademlia.FindReceiverNodes(msg)
+
+	case "PING_RETURN":
+		kademlia.Network.receive <- msg
+		return nil
+
+	case "FIND_NODE_RESPONSE":
+		kademlia.Network.receive <- msg
+		return nil
+
+	}
+	return errors.New("No of those functions exists")
+}
+
+func (kademlia *Kademlia) handlePing(msg Message) error {
+	kademlia.RoutingTable.AddContact(msg.From)
+
+	message := Message{
+		MessageId: msg.MessageId,
+		From:      kademlia.Contact,
+		To:        msg.From.Address,
+		Type:      "PING_RETURN",
+	}
+
+	return kademlia.Network.listener.Send(message)
+
 }

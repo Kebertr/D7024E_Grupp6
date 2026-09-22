@@ -13,4 +13,6 @@ require (
 	golang.org/x/sys v0.4.0 // indirect
 	golang.org/x/tools v0.5.1-0.20230111220935-a7f7db3f17fc // indirect
 	golang.org/x/tools/cmd/cover v0.1.0-deprecated // indirect
+	golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 )

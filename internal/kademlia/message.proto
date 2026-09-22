@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package kademlia;
+
+option go_package = "github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia";
+
+message ContactProto {
+    bytes id = 1;
+    string address = 2;
+}
+message MessageProto {
+	bytes MessageId             	 = 1;
+	ContactProto From                = 2;
+	string To                   	 = 3;
+	string Type                 	 = 4;
+	bytes Target                	 = 5;    
+	repeated ContactProto Contacts   = 6;
+	bytes Value                 	 = 7;     
+}
