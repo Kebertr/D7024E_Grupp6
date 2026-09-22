@@ -37,8 +37,8 @@ func TestPing(t *testing.T) {
 		Data:         make(map[string][]byte),
 	}
 
-	kademlia1.Network.serverListen(kademlia1)
-	kademlia2.Network.serverListen(kademlia2)
+	kademlia1.Network.ServerListen(kademlia1)
+	kademlia2.Network.ServerListen(kademlia2)
 
 	result := kademlia1.Ping(&kademlia2.Contact)
 
@@ -235,7 +235,7 @@ func TestSevenNodes(t *testing.T) {
 	networks := make([]*Network, len(contacts))
 	nodes := make([]*Kademlia, len(contacts))
 	for index, contact := range contacts {
-		network, err := InitNetwork(transport, contact.Address)
+		network, err := initNetwork(transport, contact)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -334,7 +334,9 @@ func TestInvalidLookupContact(t *testing.T) {
 
 func TestQueryBatch(t *testing.T) {
 	transport := NewMockNetwork()
-	network, err := InitNetwork(transport, "node1")
+	network, err := initNetwork(transport,
+		NewContact(NewKademliaID(
+			"0000000000000000000000000000000000000000000000000000000000000001"), "node1"))
 	if err != nil {
 		t.Fatal(err)
 	}

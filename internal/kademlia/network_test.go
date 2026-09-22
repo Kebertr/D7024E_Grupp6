@@ -27,7 +27,7 @@ func TestSendFindPingWrongId(t *testing.T) {
 		Data:         make(map[string][]byte),
 	}
 
-	kademlia1.Network.serverListen(kademlia1)
+	kademlia1.Network.ServerListen(kademlia1)
 
 	go func() {
 		_, err := network2.listener.Recv()
@@ -142,7 +142,7 @@ func TestSendFindContactWrongId(t *testing.T) {
 		Data:         make(map[string][]byte),
 	}
 
-	kademlia1.Network.serverListen(kademlia1)
+	kademlia1.Network.ServerListen(kademlia1)
 
 	go func() {
 		request, err := network2.listener.Recv()

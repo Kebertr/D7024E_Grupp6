@@ -35,8 +35,8 @@ func TestPingRealNetowrk(t *testing.T) {
 		Data:         make(map[string][]byte),
 	}
 
-	kademlia1.Network.serverListen(kademlia1)
-	kademlia2.Network.serverListen(kademlia2)
+	kademlia1.Network.ServerListen(kademlia1)
+	kademlia2.Network.ServerListen(kademlia2)
 
 	result := kademlia1.Ping(&kademlia2.Contact)
 
@@ -114,10 +114,10 @@ func TestLookupContactRealNetwork(t *testing.T) {
 		Data:         make(map[string][]byte),
 	}
 
-	kademlia1.Network.serverListen(kademlia1)
-	kademlia2.Network.serverListen(kademlia2)
-	kademlia3.Network.serverListen(kademlia3)
-	kademlia4.Network.serverListen(kademlia4)
+	kademlia1.Network.ServerListen(kademlia1)
+	kademlia2.Network.ServerListen(kademlia2)
+	kademlia3.Network.ServerListen(kademlia3)
+	kademlia4.Network.ServerListen(kademlia4)
 
 	result, err := kademlia1.LookupContact(&node4)
 	if err != nil {
