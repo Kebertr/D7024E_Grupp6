@@ -104,7 +104,7 @@ func (network *Network) SendStoreMessage(data []byte) {
 }
 
 // This is for receiving each message and send it to the right function
-func (network *Network) serverListen(kademlia *Kademlia) {
+func (network *Network) ServerListen(kademlia *Kademlia) {
 	go func() {
 		for {
 			msg, err := network.listener.Recv()
