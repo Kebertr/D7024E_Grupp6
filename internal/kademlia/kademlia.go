@@ -102,6 +102,7 @@ func (kademlia *Kademlia) Store(data []byte) {
 	candidates := &ContactCandidates{}
 	candidates.Append(contacts)
 	MergeClosest(candidates, kademlia.Contact, targetID, shortListSize)
+
 	for _, contact := range candidates.GetContacts(candidates.Len()) {
 		if contact.ID.Equals(kademlia.Contact.ID) {
 			if kademlia.Data == nil {
@@ -112,12 +113,6 @@ func (kademlia *Kademlia) Store(data []byte) {
 		}
 		_ = kademlia.Network.SendStoreMessage(&contact, targetID, data)
 	}
-}
-
-func hashData(data []byte) *KademliaID {
-	hash := sha256.Sum256(data)
-	targetID := KademliaID(hash)
-	return &targetID
 }
 
 // HELPER FUNCTIONS
@@ -136,6 +131,13 @@ func NextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha
 		}
 	}
 	return batch
+}
+
+// Takes <key,value> pair and makes 256 bit KadmeliaID
+func hashData(data []byte) *KademliaID {
+	hash := sha256.Sum256(data)
+	targetID := KademliaID(hash)
+	return &targetID
 }
 
 // sends a FindNode request to each contact in the batch concurrently and collects the results.
@@ -243,26 +245,8 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 	case "STORE_RESPONSE":
 		kademlia.Network.receive <- msg
 		return nil
-
 	}
 	return errors.New("No of those functions exists")
-}
-
-func (kademlia *Kademlia) handleStore(msg Message) error {
-	if msg.Target == nil {
-		return errors.New("store message has no key")
-	}
-	if kademlia.Data == nil {
-		kademlia.Data = make(map[string][]byte)
-	}
-	kademlia.Data[msg.Target.String()] = append([]byte(nil), msg.Value...)
-
-	return kademlia.Network.listener.Send(Message{
-		MessageId: msg.MessageId,
-		From:      kademlia.Contact,
-		To:        msg.From.Address,
-		Type:      "STORE_RESPONSE",
-	})
 }
 
 func (kademlia *Kademlia) handlePing(msg Message) error {
@@ -277,4 +261,21 @@ func (kademlia *Kademlia) handlePing(msg Message) error {
 
 	return kademlia.Network.listener.Send(message)
 
+}
+
+func (kademlia *Kademlia) handleStore(msg Message) error {
+	if kademlia.Data == nil {
+		kademlia.Data = make(map[string][]byte)
+	}
+
+	kademlia.Data[msg.Target.String()] = append([]byte(nil), msg.Value...)
+
+	message := Message{
+		MessageId: msg.MessageId,
+		From:      kademlia.Contact,
+		To:        msg.From.Address,
+		Type:      "STORE_RESPONSE",
+	}
+
+	return kademlia.Network.listener.Send(message)
 }
