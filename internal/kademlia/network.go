@@ -99,8 +99,32 @@ func (network *Network) SendFindDataMessage(hash string) {
 	// TODO
 }
 
-func (network *Network) SendStoreMessage(data []byte) {
-	// TODO
+func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, data []byte) error {
+	if contact == nil || target == nil {
+		return errors.New("contact and target are required")
+	}
+
+	id := createMessageId()
+
+	msg := Message{
+		MessageId: id,
+		From:      network.contact,
+		To:        contact.Address,
+		Type:      "STORE",
+		Target:    target,
+		Value:     append([]byte(nil), data...),
+	}
+
+	err := network.listener.Send(msg)
+	if err != nil {
+		return err
+	}
+
+	response := <-network.receive // Should we have timeouts? Risk of waiting endlessly
+	if response.MessageId != id || response.Type != "STORE_RESPONSE" {
+		return errors.New("invalid store response")
+	}
+	return nil
 }
 
 // This is for receiving each message and send it to the right function

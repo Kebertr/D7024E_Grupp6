@@ -264,6 +264,9 @@ func (kademlia *Kademlia) handlePing(msg Message) error {
 }
 
 func (kademlia *Kademlia) handleStore(msg Message) error {
+	if msg.Target == nil {
+		return errors.New("store message has no target")
+	}
 	if kademlia.Data == nil {
 		kademlia.Data = make(map[string][]byte)
 	}
