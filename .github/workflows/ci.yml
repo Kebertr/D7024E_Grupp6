@@ -45,6 +45,6 @@ jobs:
               cache: true
 
           - name: Run coverage test
-            run: ./coverage.sh
+            run: ./coveragereport.sh
 
 # Add for docker later when docker is added
