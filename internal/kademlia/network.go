@@ -1,13 +1,20 @@
 package kademlia
 
-import "errors"
+import (
+	"errors"
+	"sync"
+)
 
 type Network struct {
 	transport Transport
-	address   Address
+	contact   Contact
 	listener  Connection
 	receive   chan Message
+	wg        sync.WaitGroup
 }
+
+type Address = string
+type messageId [32]byte
 
 type Transport interface {
 	Listen(addr Address) (Connection, error)
@@ -20,27 +27,57 @@ type Connection interface {
 }
 
 type Message struct {
-	From     Address
-	To       Address
-	Type     string
-	Target   *KademliaID
-	Contacts []Contact
+	MessageId messageId
+	From      Contact
+	To        Address
+	Type      string
+	Target    *KademliaID
+	Contacts  []Contact
+	Value     []byte
 }
 
-func (network *Network) SendPingMessage(contact *Contact) {
-	// TODO
+func (network *Network) SendPingMessage(contact *Contact) error {
+	id := createMessageId()
+
+	if contact == nil {
+		return errors.New("There should be a node")
+	}
+
+	msg := Message{
+		MessageId: id,
+		From:      network.contact,
+		To:        contact.Address,
+		Type:      "PING",
+	}
+
+	err := network.listener.Send(msg)
+	if err != nil {
+		return err
+	}
+
+	response := <-network.receive
+
+	if response.MessageId != id {
+		return errors.New("The Id do not match")
+	}
+
+	return nil
 }
 
 func (network *Network) SendFindContactMessage(contact *Contact, targetId *KademliaID) ([]Contact, error) {
+
+	id := createMessageId()
+
 	if contact == nil || targetId == nil {
 		return nil, errors.New("Either contact or targetId is nil")
 	}
 
 	msg := Message{
-		From:   network.address,
-		To:     contact.Address,
-		Type:   "FIND_NODE",
-		Target: targetId,
+		MessageId: id,
+		From:      network.contact,
+		To:        contact.Address,
+		Type:      "FIND_NODE",
+		Target:    targetId,
 	}
 
 	err := network.listener.Send(msg)
@@ -49,6 +86,10 @@ func (network *Network) SendFindContactMessage(contact *Contact, targetId *Kadem
 	}
 
 	response := <-network.receive
+
+	if response.MessageId != id {
+		return nil, errors.New("The Id do not match")
+	}
 
 	return response.Contacts, nil
 
@@ -70,26 +111,19 @@ func (network *Network) serverListen(kademlia *Kademlia) {
 			if err != nil {
 				return
 			}
-
-			switch msg.Type {
-			//Add case for err. Also add case for value and so on in the future
-			case "FIND_NODE":
-				kademlia.FindReceiverNodes(msg)
-
-			case "FIND_NODE_RESPONSE":
-				network.receive <- msg
-			}
+			go kademlia.handleIncomingMessage(msg)
 		}
 	}()
 }
 
-func (network *Network) FindReceiverNodes(toAddress Address, contacts []Contact) error {
+func (network *Network) FindReceiverNodes(Id messageId, toAddress Address, contacts []Contact) error {
 
 	response := Message{
-		From:     network.address,
-		To:       toAddress,
-		Type:     "FIND_NODE_RESPONSE",
-		Contacts: contacts,
+		MessageId: Id,
+		From:      network.contact,
+		To:        toAddress,
+		Type:      "FIND_NODE_RESPONSE",
+		Contacts:  contacts,
 	}
 
 	err := network.listener.Send(response)
@@ -100,18 +134,23 @@ func (network *Network) FindReceiverNodes(toAddress Address, contacts []Contact)
 }
 
 // Initializes the network. Good for not initalizing it in every test
-func initNetwork(transport Transport, address Address) (*Network, error) {
-	listener, err := transport.Listen(address)
+func initNetwork(transport Transport, contact Contact) (*Network, error) {
+	listener, err := transport.Listen(contact.Address)
 	if err != nil {
 		return nil, err
 	}
 
 	network := &Network{
 		transport: transport,
-		address:   address,
+		contact:   contact,
 		listener:  listener,
 		receive:   make(chan Message, 1),
 	}
 
 	return network, nil
+}
+
+func createMessageId() messageId {
+	Id := NewRandomKademliaID()
+	return messageId(*Id)
 }

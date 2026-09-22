@@ -2,6 +2,76 @@ package kademlia
 
 import "testing"
 
+func TestPing(t *testing.T) {
+	mock := NewMockNetwork()
+
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
+	node2 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2")
+
+	routing1 := NewRoutingTable(node1)
+	routing2 := NewRoutingTable(node2)
+
+	network1, err := initNetwork(mock, node1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	network2, err := initNetwork(mock, node2)
+	if err != nil {
+		t.Error(err)
+	}
+
+	kademlia1 := &Kademlia{
+		Contact:      node1,
+		RoutingTable: routing1,
+		Network:      network1,
+		Data:         make(map[string][]byte),
+	}
+
+	kademlia2 := &Kademlia{
+		Contact:      node2,
+		RoutingTable: routing2,
+		Network:      network2,
+		Data:         make(map[string][]byte),
+	}
+
+	kademlia1.Network.serverListen(kademlia1)
+	kademlia2.Network.serverListen(kademlia2)
+
+	result := kademlia1.Ping(&kademlia2.Contact)
+
+	if result != nil {
+		t.Fatalf("Ping failed")
+	}
+
+}
+
+func TestPingErrors(t *testing.T) {
+	mock := NewMockNetwork()
+
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
+
+	routing1 := NewRoutingTable(node1)
+
+	network1, err := initNetwork(mock, node1)
+	if err != nil {
+		t.Error(err)
+	}
+
+	kademlia1 := &Kademlia{
+		Contact:      node1,
+		RoutingTable: routing1,
+		Network:      network1,
+		Data:         make(map[string][]byte),
+	}
+
+	result := kademlia1.Ping(nil)
+
+	if result == nil {
+		t.Fatalf("Expected result to be nil. Since there is no destination address")
+	}
+}
+
 func TestNextUnqueried(t *testing.T) {
 	node1 := NewContact(NewKademliaID(
 		"0000000000000000000000000000000000000000000000000000000000000001",
@@ -77,22 +147,22 @@ func TestLookupContact(t *testing.T) {
 	routing2.AddContact(node3)
 	routing3.AddContact(node4)
 
-	network1, err := initNetwork(mock, node1.Address)
+	network1, err := initNetwork(mock, node1)
 	if err != nil {
 		t.Error(err)
 	}
 
-	network2, err := initNetwork(mock, node2.Address)
+	network2, err := initNetwork(mock, node2)
 	if err != nil {
 		t.Error(err)
 	}
 
-	network3, err := initNetwork(mock, node3.Address)
+	network3, err := initNetwork(mock, node3)
 	if err != nil {
 		t.Error(err)
 	}
 
-	network4, err := initNetwork(mock, node4.Address)
+	network4, err := initNetwork(mock, node4)
 	if err != nil {
 		t.Error(err)
 	}
@@ -138,7 +208,6 @@ func TestLookupContact(t *testing.T) {
 	worked := false
 
 	for _, contact := range result {
-		t.Log(contact)
 		if contact.ID.Equals(node4.ID) {
 			worked = true
 		}
