@@ -167,3 +167,48 @@ func TestSendFindContactWrongId(t *testing.T) {
 		t.Fatalf("Not the error we expected")
 	}
 }
+
+func TestSendStoreMessage(t *testing.T) {
+	mock := NewMockNetwork()
+
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
+	node2 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2")
+
+	network1, err := initNetwork(mock, node1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	network2, err := initNetwork(mock, node2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kademlia1 := &Kademlia{
+		Contact:      node1,
+		RoutingTable: NewRoutingTable(node1),
+		Network:      network1,
+	}
+	kademlia2 := &Kademlia{
+		Contact:      node2,
+		RoutingTable: NewRoutingTable(node2),
+		Network:      network2,
+	}
+	network1.ServerListen(kademlia1)
+	network2.ServerListen(kademlia2)
+
+	target := NewKademliaID("0000000000000000000000000000000000000000000000000000000000000003")
+	data := []byte("value")
+
+	if err := network1.SendStoreMessage(&node2, target, data); err != nil {
+		t.Fatalf("SendStoreMessage failed: %v", err)
+	}
+
+	stored, ok := kademlia2.Data[target.String()]
+	if !ok {
+		t.Fatal("expected receiver to store the value")
+	}
+	if string(stored) != string(data) {
+		t.Fatalf("expected stored value %q, got %q", data, stored)
+	}
+}

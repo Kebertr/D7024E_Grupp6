@@ -75,6 +75,37 @@ func TestPingErrors(t *testing.T) {
 	}
 }
 
+func TestStoreStoresDataLocally(t *testing.T) {
+	mock := NewMockNetwork()
+	node := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+		"node1",
+	)
+
+	network, err := initNetwork(mock, node)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kademlia := &Kademlia{
+		Contact:      node,
+		RoutingTable: NewRoutingTable(node),
+		Network:      network,
+	}
+	data := []byte("value")
+
+	kademlia.Store(data)
+	data[0] = 'X'
+
+	stored, ok := kademlia.Data[hashData([]byte("value")).String()]
+	if !ok {
+		t.Fatal("expected Store to save the data locally")
+	}
+	if string(stored) != "value" {
+		t.Fatalf("expected stored value %q, got %q", "value", stored)
+	}
+}
+
 func TestNextUnqueried(t *testing.T) {
 	node1 := NewContact(NewKademliaID(
 		"0000000000000000000000000000000000000000000000000000000000000001",
