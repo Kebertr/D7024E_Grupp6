@@ -75,6 +75,84 @@ func TestPingErrors(t *testing.T) {
 	}
 }
 
+func TestStoreStoresDataLocally(t *testing.T) {
+	mock := NewMockNetwork()
+	node := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+		"node1",
+	)
+
+	network, err := initNetwork(mock, node)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kademlia := &Kademlia{
+		Contact:      node,
+		RoutingTable: NewRoutingTable(node),
+		Network:      network,
+	}
+	data := []byte("value")
+
+	kademlia.Store(data)
+	data[0] = 'X'
+
+	stored, ok := kademlia.Data[hashData([]byte("value")).String()]
+	if !ok {
+		t.Fatal("expected Store to save the data locally")
+	}
+	if string(stored) != "value" {
+		t.Fatalf("expected stored value %q, got %q", "value", stored)
+	}
+}
+
+func TestLookupDataFindsRemoteValue(t *testing.T) {
+	mock := NewMockNetwork()
+	node1 := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+		"node1",
+	)
+	node2 := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"),
+		"node2",
+	)
+
+	network1, err := initNetwork(mock, node1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	network2, err := initNetwork(mock, node2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data := []byte("value")
+	targetID := hashData(data)
+	kademlia1 := &Kademlia{
+		Contact:      node1,
+		RoutingTable: NewRoutingTable(node1),
+		Network:      network1,
+	}
+	kademlia1.RoutingTable.AddContact(node2)
+	kademlia2 := &Kademlia{
+		Contact:      node2,
+		RoutingTable: NewRoutingTable(node2),
+		Network:      network2,
+		Data:         map[string][]byte{targetID.String(): data},
+	}
+
+	network1.ServerListen(kademlia1)
+	network2.ServerListen(kademlia2)
+
+	result, err := kademlia1.LookupData(targetID.String())
+	if err != nil {
+		t.Fatalf("LookupData failed: %v", err)
+	}
+	if string(result) != string(data) {
+		t.Fatalf("expected value %q, got %q", data, result)
+	}
+}
+
 func TestNextUnqueried(t *testing.T) {
 	node1 := NewContact(NewKademliaID(
 		"0000000000000000000000000000000000000000000000000000000000000001",

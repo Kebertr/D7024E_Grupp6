@@ -95,12 +95,64 @@ func (network *Network) SendFindContactMessage(contact *Contact, targetId *Kadem
 
 }
 
-func (network *Network) SendFindDataMessage(hash string) {
-	// TODO
+func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID) ([]byte, []Contact, bool, error) {
+	if contact == nil || target == nil {
+		return nil, nil, false, errors.New("contact and target are required")
+	}
+
+	id := createMessageId()
+	msg := Message{
+		MessageId: id,
+		From:      network.contact,
+		To:        contact.Address,
+		Type:      "FIND_VALUE",
+		Target:    target,
+	}
+
+	err := network.listener.Send(msg)
+	if err != nil {
+		return nil, nil, false, err
+	}
+
+	response := <-network.receive
+	if response.MessageId != id {
+		return nil, nil, false, errors.New("The Id do not match")
+	}
+	if response.Type == "FIND_VALUE_RESPONSE" {
+		return append([]byte(nil), response.Value...), nil, true, nil
+	}
+	if response.Type == "FIND_NODE_RESPONSE" {
+		return nil, response.Contacts, false, nil
+	}
+	return nil, nil, false, errors.New("invalid find data response")
 }
 
-func (network *Network) SendStoreMessage(data []byte) {
-	// TODO
+func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, data []byte) error {
+	if contact == nil || target == nil {
+		return errors.New("contact and target are required")
+	}
+
+	id := createMessageId()
+
+	msg := Message{
+		MessageId: id,
+		From:      network.contact,
+		To:        contact.Address,
+		Type:      "STORE",
+		Target:    target,
+		Value:     append([]byte(nil), data...),
+	}
+
+	err := network.listener.Send(msg)
+	if err != nil {
+		return err
+	}
+
+	response := <-network.receive // Should we have timeouts? Risk of waiting endlessly
+	if response.MessageId != id || response.Type != "STORE_RESPONSE" {
+		return errors.New("invalid store response")
+	}
+	return nil
 }
 
 // This is for receiving each message and send it to the right function
