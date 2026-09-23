@@ -95,8 +95,34 @@ func (network *Network) SendFindContactMessage(contact *Contact, targetId *Kadem
 
 }
 
-func (network *Network) SendFindDataMessage(hash string) {
-	// TODO
+func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID) ([]byte, []Contact, bool, error) {
+	if contact == nil || target == nil {
+		return nil, nil, false, errors.New("contact and target are required")
+	}
+
+	id := createMessageId()
+	err := network.listener.Send(Message{
+		MessageId: id,
+		From:      network.contact,
+		To:        contact.Address,
+		Type:      "FIND_VALUE",
+		Target:    target,
+	})
+	if err != nil {
+		return nil, nil, false, err
+	}
+
+	response := <-network.receive
+	if response.MessageId != id {
+		return nil, nil, false, errors.New("The Id do not match")
+	}
+	if response.Type == "FIND_VALUE_RESPONSE" {
+		return append([]byte(nil), response.Value...), nil, true, nil
+	}
+	if response.Type == "FIND_NODE_RESPONSE" {
+		return nil, response.Contacts, false, nil
+	}
+	return nil, nil, false, errors.New("invalid find data response")
 }
 
 func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, data []byte) error {
