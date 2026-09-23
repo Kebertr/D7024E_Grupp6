@@ -346,23 +346,25 @@ func (kademlia *Kademlia) FindReceiverData(msg Message) error {
 	}
 
 	if value, ok := kademlia.Data[msg.Target.String()]; ok {
-		return kademlia.Network.listener.Send(Message{
+		message := Message{
 			MessageId: msg.MessageId,
 			From:      kademlia.Contact,
 			To:        msg.From.Address,
 			Type:      "FIND_VALUE_RESPONSE",
 			Value:     append([]byte(nil), value...),
-		})
+		}
+		return kademlia.Network.listener.Send(message)
 	}
 
 	contacts := kademlia.RoutingTable.FindClosestContacts(msg.Target, shortListSize)
-	return kademlia.Network.listener.Send(Message{
+	message := Message{
 		MessageId: msg.MessageId,
 		From:      kademlia.Contact,
 		To:        msg.From.Address,
 		Type:      "FIND_NODE_RESPONSE",
 		Contacts:  contacts,
-	})
+	}
+	return kademlia.Network.listener.Send(message)
 }
 
 func (kademlia *Kademlia) handlePing(msg Message) error {

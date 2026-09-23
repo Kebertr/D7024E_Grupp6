@@ -101,13 +101,15 @@ func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID
 	}
 
 	id := createMessageId()
-	err := network.listener.Send(Message{
+	msg := Message{
 		MessageId: id,
 		From:      network.contact,
 		To:        contact.Address,
 		Type:      "FIND_VALUE",
 		Target:    target,
-	})
+	}
+
+	err := network.listener.Send(msg)
 	if err != nil {
 		return nil, nil, false, err
 	}
