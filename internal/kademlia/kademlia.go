@@ -17,14 +17,7 @@ type Kademlia struct {
 }
 
 func (kademlia *Kademlia) Ping(contact *Contact) error {
-	err := kademlia.Network.SendPingMessage(contact)
-
-	if err != nil {
-		return err
-	}
-
-	kademlia.RoutingTable.AddContact(*contact)
-	return nil
+	return kademlia.Network.SendPingMessage(contact)
 }
 
 func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
@@ -212,4 +205,32 @@ func (kademlia *Kademlia) handlePing(msg Message) error {
 
 	return kademlia.Network.listener.Send(message)
 
+}
+
+func NewKademlia(id *KademliaID, address string) (*Kademlia, error) {
+	contact := NewContact(id, address)
+
+	network, err := initNetwork(NewRealNetwork(), contact)
+	if err != nil {
+		return nil, err
+	}
+
+	node := &Kademlia{
+		Contact:      contact,
+		RoutingTable: NewRoutingTable(contact),
+		Network:      network,
+		Data:         make(map[string][]byte),
+	}
+
+	network.ServerListen(node)
+
+	return node, nil
+}
+
+func (kademlia *Kademlia) Close() error {
+	if kademlia == nil || kademlia.Network == nil {
+		return nil
+	}
+
+	return kademlia.Network.Close()
 }

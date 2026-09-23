@@ -2,7 +2,6 @@ package kademlia
 
 import (
 	"encoding/hex"
-	"fmt"
 	"math/rand"
 )
 
@@ -17,6 +16,7 @@ func NewKademliaID(data string) *KademliaID {
 	decoded, _ := hex.DecodeString(data)
 
 	newKademliaID := KademliaID{}
+	copy(newKademliaID[:], decoded)
 
 	return &newKademliaID
 }

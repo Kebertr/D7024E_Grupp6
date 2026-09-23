@@ -3,6 +3,7 @@ package kademlia
 import (
 	"errors"
 	"sync"
+	"time"
 )
 
 type Network struct {
@@ -55,10 +56,13 @@ func (network *Network) SendPingMessage(contact *Contact) error {
 		return err
 	}
 
-	response := <-network.receive
-
-	if response.MessageId != id {
-		return errors.New("The Id do not match")
+	select {
+	case response := <-network.receive:
+		if response.MessageId != id {
+			return errors.New("The Id do not match")
+		}
+	case <-time.After(5 * time.Second):
+		return errors.New("ping timed out")
 	}
 
 	return nil
@@ -153,4 +157,12 @@ func initNetwork(transport Transport, contact Contact) (*Network, error) {
 func createMessageId() messageId {
 	Id := NewRandomKademliaID()
 	return messageId(*Id)
+}
+
+func (network *Network) Close() error {
+	if network == nil || network.listener == nil {
+		return nil
+	}
+
+	return network.listener.Close()
 }

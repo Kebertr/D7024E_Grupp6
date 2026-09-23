@@ -68,3 +68,16 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 
 	return IDLength*8 - 1
 }
+
+// So cli can access buckets
+func (routingTable *RoutingTable) GetAllContacts() []Contact {
+	var contacts []Contact
+
+	for _, bucket := range routingTable.buckets {
+		for element := bucket.List.Front(); element != nil; element = element.Next() {
+			contacts = append(contacts, element.Value.(Contact))
+		}
+	}
+
+	return contacts
+}
