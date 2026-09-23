@@ -82,8 +82,44 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 	return candidates.contacts, nil
 }
 
-func (kademlia *Kademlia) LookupData(hash string) {
-	// TODO
+func (kademlia *Kademlia) LookupData(hash string) ([]byte, error) {
+	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
+		return nil, errors.New("invalid lookup arguments")
+	}
+
+	targetID := NewKademliaID(hash)
+	if targetID == nil {
+		return nil, errors.New("invalid data hash")
+	}
+	if kademlia.Data != nil {
+		if value, ok := kademlia.Data[targetID.String()]; ok {
+			return append([]byte(nil), value...), nil
+		}
+	}
+
+	candidates := &ContactCandidates{}
+	candidates.Append(kademlia.RoutingTable.FindClosestContacts(targetID, shortListSize))
+	queried := make(map[string]bool)
+
+	for {
+		batch := NextUnqueried(candidates, queried, alpha)
+		if len(batch) == 0 {
+			return nil, errors.New("data not found")
+		}
+
+		results, err := QueryDataBatch(kademlia.Network, batch, targetID)
+		if err != nil {
+			return nil, err
+		}
+		for _, result := range results {
+			if result.found {
+				return result.value, nil
+			}
+			for _, contact := range result.contacts {
+				MergeClosest(candidates, contact, targetID, shortListSize)
+			}
+		}
+	}
 }
 
 func (kademlia *Kademlia) Store(data []byte) {
@@ -185,6 +221,54 @@ func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 	return results, nil
 }
 
+type dataQueryResult struct {
+	value    []byte
+	contacts []Contact
+	found    bool
+}
+
+func QueryDataBatch(network *Network, batch []Contact, targetID *KademliaID) ([]dataQueryResult, error) {
+	results := make([]dataQueryResult, len(batch))
+	errCh := make(chan error, len(batch))
+	resultCh := make(chan struct {
+		index  int
+		result dataQueryResult
+	}, len(batch))
+
+	var wg sync.WaitGroup
+	wg.Add(len(batch))
+	for i, contact := range batch {
+		go func(i int, contact Contact) {
+			defer wg.Done()
+			value, contacts, found, err := network.SendFindDataMessage(&contact, targetID)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			resultCh <- struct {
+				index  int
+				result dataQueryResult
+			}{i, dataQueryResult{value: value, contacts: contacts, found: found}}
+		}(i, contact)
+	}
+	wg.Wait()
+	select {
+	case err := <-errCh:
+		return nil, err
+	default:
+	}
+
+	for i := 0; i < len(batch); i++ {
+		select {
+		case err := <-errCh:
+			return nil, err
+		case result := <-resultCh:
+			results[result.index] = result.result
+		}
+	}
+	return results, nil
+}
+
 // merges a new contact into the candidates list, keeping only the closest 'count' contacts to the targetID.
 func MergeClosest(
 	candidates *ContactCandidates,
@@ -231,11 +315,18 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 	case "FIND_NODE":
 		return kademlia.FindReceiverNodes(msg)
 
+	case "FIND_VALUE":
+		return kademlia.FindReceiverData(msg)
+
 	case "PING_RETURN":
 		kademlia.Network.receive <- msg
 		return nil
 
 	case "FIND_NODE_RESPONSE":
+		kademlia.Network.receive <- msg
+		return nil
+
+	case "FIND_VALUE_RESPONSE":
 		kademlia.Network.receive <- msg
 		return nil
 
@@ -247,6 +338,31 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 		return nil
 	}
 	return errors.New("No of those functions exists")
+}
+
+func (kademlia *Kademlia) FindReceiverData(msg Message) error {
+	if msg.Target == nil {
+		return errors.New("find value message has no target")
+	}
+
+	if value, ok := kademlia.Data[msg.Target.String()]; ok {
+		return kademlia.Network.listener.Send(Message{
+			MessageId: msg.MessageId,
+			From:      kademlia.Contact,
+			To:        msg.From.Address,
+			Type:      "FIND_VALUE_RESPONSE",
+			Value:     append([]byte(nil), value...),
+		})
+	}
+
+	contacts := kademlia.RoutingTable.FindClosestContacts(msg.Target, shortListSize)
+	return kademlia.Network.listener.Send(Message{
+		MessageId: msg.MessageId,
+		From:      kademlia.Contact,
+		To:        msg.From.Address,
+		Type:      "FIND_NODE_RESPONSE",
+		Contacts:  contacts,
+	})
 }
 
 func (kademlia *Kademlia) handlePing(msg Message) error {
