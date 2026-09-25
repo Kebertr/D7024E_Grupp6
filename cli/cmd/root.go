@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
 	"github.com/spf13/cobra"
@@ -165,11 +166,14 @@ func shellPing(args []string) {
 		fmt.Println("Invalid port:", err)
 		return
 	}
-
 	contact := kademlia.NewContact(nil, args[0]+":"+strconv.Itoa(port))
-	if err := node.Ping(&contact); err != nil {
-		fmt.Println("Ping failed:", err)
+
+	pingTime := time.Now()
+	var ping = node.Ping(&contact)
+	duration := time.Since(pingTime)
+	if ping != nil {
+		fmt.Printf("Ping failed after %v: %v\n", duration, err)
 		return
 	}
-	fmt.Println("Ping successful to", contact.Address)
+	fmt.Printf("Pinging from %s in %v\n", contact.Address, duration)
 }
