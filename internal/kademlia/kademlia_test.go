@@ -97,7 +97,7 @@ func TestStoreStoresDataLocally(t *testing.T) {
 	kademlia.Store(data)
 	data[0] = 'X'
 
-	stored, ok := kademlia.Data[hashData([]byte("value")).String()]
+	stored, ok := kademlia.Data[NewValueID([]byte("value")).String()]
 	if !ok {
 		t.Fatal("expected Store to save the data locally")
 	}
@@ -127,7 +127,7 @@ func TestLookupDataFindsRemoteValue(t *testing.T) {
 	}
 
 	data := []byte("value")
-	targetID := hashData(data)
+	targetID := NewValueID(data)
 	kademlia1 := &Kademlia{
 		Contact:      node1,
 		RoutingTable: NewRoutingTable(node1),

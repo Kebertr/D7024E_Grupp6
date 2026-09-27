@@ -1,7 +1,6 @@
 package kademlia
 
 import (
-	"crypto/sha256"
 	"errors"
 	sync "sync"
 )
@@ -91,10 +90,10 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, error) {
 	if targetID == nil {
 		return nil, errors.New("invalid data hash")
 	}
-	if kademlia.Data != nil {
-		if value, ok := kademlia.Data[targetID.String()]; ok {
-			return append([]byte(nil), value...), nil
-		}
+
+	if value, ok := kademlia.Data[targetID.String()]; ok {
+		//Return a copy so orginial wont risk it being mutated
+		return append([]byte(nil), value...), nil
 	}
 
 	candidates := &ContactCandidates{}
@@ -122,16 +121,16 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, error) {
 	}
 }
 
-func (kademlia *Kademlia) Store(data []byte) {
+func (kademlia *Kademlia) Store(data []byte) error {
 	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
-		return
+		return errors.New("invalid store arguments")
 	}
 
-	targetID := hashData(data)
+	targetID := NewValueID(data)
 	target := Contact{ID: targetID}
 	contacts, err := kademlia.LookupContact(&target)
 	if err != nil {
-		return
+		return err
 	}
 
 	// The node performing the lookup can itself be one of the k closest nodes.
@@ -139,6 +138,7 @@ func (kademlia *Kademlia) Store(data []byte) {
 	candidates.Append(contacts)
 	MergeClosest(candidates, kademlia.Contact, targetID, shortListSize)
 
+	var storeErr error
 	for _, contact := range candidates.GetContacts(candidates.Len()) {
 		if contact.ID.Equals(kademlia.Contact.ID) {
 			if kademlia.Data == nil {
@@ -147,8 +147,11 @@ func (kademlia *Kademlia) Store(data []byte) {
 			kademlia.Data[targetID.String()] = append([]byte(nil), data...)
 			continue
 		}
-		_ = kademlia.Network.SendStoreMessage(&contact, targetID, data)
+		if err := kademlia.Network.SendStoreMessage(&contact, targetID, data); err != nil {
+			storeErr = err
+		}
 	}
+	return storeErr
 }
 
 // HELPER FUNCTIONS
@@ -167,13 +170,6 @@ func NextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha
 		}
 	}
 	return batch
-}
-
-// Takes <key,value> pair and makes 256 bit KadmeliaID
-func hashData(data []byte) *KademliaID {
-	hash := sha256.Sum256(data)
-	targetID := KademliaID(hash)
-	return &targetID
 }
 
 // sends a FindNode request to each contact in the batch concurrently and collects the results.
@@ -336,6 +332,10 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 	case "STORE_RESPONSE":
 		kademlia.Network.receive <- msg
 		return nil
+
+	case "STORE_ERROR":
+		kademlia.Network.receive <- msg
+		return nil
 	}
 	return errors.New("No of those functions exists")
 }
@@ -352,6 +352,7 @@ func (kademlia *Kademlia) FindReceiverData(msg Message) error {
 			To:        msg.From.Address,
 			Type:      "FIND_VALUE_RESPONSE",
 			Value:     append([]byte(nil), value...),
+			Found:     true,
 		}
 		return kademlia.Network.listener.Send(message)
 	}
@@ -361,7 +362,7 @@ func (kademlia *Kademlia) FindReceiverData(msg Message) error {
 		MessageId: msg.MessageId,
 		From:      kademlia.Contact,
 		To:        msg.From.Address,
-		Type:      "FIND_NODE_RESPONSE",
+		Type:      "FIND_VALUE_RESPONSE",
 		Contacts:  contacts,
 	}
 	return kademlia.Network.listener.Send(message)
@@ -383,7 +384,21 @@ func (kademlia *Kademlia) handlePing(msg Message) error {
 
 func (kademlia *Kademlia) handleStore(msg Message) error {
 	if msg.Target == nil {
-		return errors.New("store message has no target")
+		return kademlia.Network.listener.Send(Message{
+			MessageId: msg.MessageId,
+			From:      kademlia.Contact,
+			To:        msg.From.Address,
+			Type:      "STORE_ERROR",
+		})
+	}
+	// reject mappings where the key isn't the hash of the value (K = hash(V))
+	if !msg.Target.Equals(NewValueID(msg.Value)) {
+		return kademlia.Network.listener.Send(Message{
+			MessageId: msg.MessageId,
+			From:      kademlia.Contact,
+			To:        msg.From.Address,
+			Type:      "STORE_ERROR",
+		})
 	}
 	if kademlia.Data == nil {
 		kademlia.Data = make(map[string][]byte)

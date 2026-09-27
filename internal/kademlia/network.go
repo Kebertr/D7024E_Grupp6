@@ -34,6 +34,7 @@ type Message struct {
 	Target    *KademliaID
 	Contacts  []Contact
 	Value     []byte
+	Found     bool
 }
 
 func (network *Network) SendPingMessage(contact *Contact) error {
@@ -118,18 +119,18 @@ func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID
 	if response.MessageId != id {
 		return nil, nil, false, errors.New("The Id do not match")
 	}
-	if response.Type == "FIND_VALUE_RESPONSE" {
+	if response.Type != "FIND_VALUE_RESPONSE" {
+		return nil, nil, false, errors.New("invalid find data response")
+	}
+	if response.Found {
 		return append([]byte(nil), response.Value...), nil, true, nil
 	}
-	if response.Type == "FIND_NODE_RESPONSE" {
-		return nil, response.Contacts, false, nil
-	}
-	return nil, nil, false, errors.New("invalid find data response")
+	return nil, response.Contacts, false, nil
 }
 
 func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, data []byte) error {
-	if contact == nil || target == nil {
-		return errors.New("contact and target are required")
+	if contact == nil {
+		return errors.New("contact is required")
 	}
 
 	id := createMessageId()
@@ -150,6 +151,9 @@ func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, d
 
 	response := <-network.receive // Should we have timeouts? Risk of waiting endlessly
 	if response.MessageId != id || response.Type != "STORE_RESPONSE" {
+		if response.MessageId == id && response.Type == "STORE_ERROR" {
+			return errors.New("store rejected by receiver")
+		}
 		return errors.New("invalid store response")
 	}
 	return nil
