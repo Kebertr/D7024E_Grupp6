@@ -1,6 +1,7 @@
 package kademlia
 
 import (
+	"crypto/sha256"
 	"encoding/hex"
 	"math/rand"
 )
@@ -29,6 +30,13 @@ func NewRandomKademliaID() *KademliaID {
 		newKademliaID[i] = uint8(rand.Intn(256))
 	}
 	return &newKademliaID
+}
+
+// Takes <key,value> pair and makes 256 bit KadmeliaID
+func NewValueID(data []byte) *KademliaID {
+	hash := sha256.Sum256(data)
+	targetID := KademliaID(hash)
+	return &targetID
 }
 
 // Less returns true if kademliaID < otherKademliaID (bitwise)

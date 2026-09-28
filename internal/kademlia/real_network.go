@@ -47,9 +47,19 @@ func (c *realConnection) Send(msg Message) error {
 			Id:      msg.From.ID[:],
 			Address: msg.From.Address,
 		},
-		To:    msg.To,
-		Type:  msg.Type,
-		Value: msg.Value,
+		To:   msg.To,
+		Type: msg.Type,
+	}
+	//Adds found flag only to store messeges. Other remains the same
+	if msg.Type == "FIND_VALUE_RESPONSE" {
+		// Preserve found state even when the value is empty.
+		foundFlag := byte(0)
+		if msg.Found {
+			foundFlag = 1
+		}
+		msgProto.Value = append([]byte{foundFlag}, msg.Value...)
+	} else {
+		msgProto.Value = msg.Value
 	}
 
 	if msg.Target != nil {
@@ -101,6 +111,11 @@ func (c *realConnection) Recv() (Message, error) {
 		To:    msgProto.To,
 		Type:  msgProto.GetType(),
 		Value: msgProto.GetValue(),
+	}
+	//Extract found flag only if it's from a store message
+	if message.Type == "FIND_VALUE_RESPONSE" && len(message.Value) > 0 {
+		message.Found = message.Value[0] == 1
+		message.Value = append([]byte(nil), message.Value[1:]...)
 	}
 
 	if len(msgProto.Target) > 0 {
