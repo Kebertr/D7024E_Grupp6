@@ -49,7 +49,6 @@ func (network *Network) SendPingMessage(contact *Contact) error {
 		To:        contact.Address,
 		Type:      "PING",
 	}
-
 	err := network.listener.Send(msg)
 	if err != nil {
 		return err

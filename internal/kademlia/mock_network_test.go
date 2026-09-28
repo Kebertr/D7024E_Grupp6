@@ -1,6 +1,10 @@
 package kademlia
 
-import "testing"
+import (
+	"math/rand"
+	"strconv"
+	"testing"
+)
 
 func TestSendFindPingWrongId(t *testing.T) {
 	mock := NewMockNetwork()
@@ -165,5 +169,39 @@ func TestSendFindContactWrongId(t *testing.T) {
 
 	if err.Error() != "The Id do not match" {
 		t.Fatalf("Not the error we expected")
+	}
+}
+
+func Test1000Nodes(t *testing.T) {
+	mock := NewMockNetwork()
+
+	nodes := make([]*Kademlia, 1000)
+
+	for i := 0; i < len(nodes); i++ {
+		node := NewContact(NewRandomKademliaID(), strconv.Itoa(i))
+
+		network, err := initNetwork(mock, node)
+		if err != nil {
+			t.Error(err)
+		}
+
+		nodes[i] = &Kademlia{
+			Contact:      node,
+			RoutingTable: NewRoutingTable(node),
+			Network:      network,
+			Data:         make(map[string][]byte),
+		}
+
+		network.serverListen(nodes[i])
+
+	}
+
+	for i := 0; i < len(nodes); i++ {
+		randValue := rand.Intn(len(nodes))
+		result := nodes[i].Ping(&nodes[randValue].Contact)
+
+		if result != nil {
+			t.Fatalf("Ping failed")
+		}
 	}
 }
