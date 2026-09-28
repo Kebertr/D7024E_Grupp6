@@ -2,6 +2,48 @@ package kademlia
 
 import "testing"
 
+func TestFindValueRealNetworkPreservesEmptyValue(t *testing.T) {
+	real := NewRealNetwork()
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "127.0.0.1:0")
+	node2 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "127.0.0.1:0")
+
+	network1, err := initNetwork(real, node1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = network1.listener.Close() })
+	network2, err := initNetwork(real, node2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = network2.listener.Close() })
+
+	node1.Address = network1.listener.(*realConnection).conn.LocalAddr().String()
+	node2.Address = network2.listener.(*realConnection).conn.LocalAddr().String()
+	network1.contact = node1
+	network2.contact = node2
+
+	target := NewKademliaID("0000000000000000000000000000000000000000000000000000000000000004")
+	kademlia1 := &Kademlia{Contact: node1, RoutingTable: NewRoutingTable(node1), Network: network1}
+	kademlia2 := &Kademlia{
+		Contact:      node2,
+		RoutingTable: NewRoutingTable(node2),
+		Network:      network2,
+		Data:         map[string][]byte{target.String(): {}},
+	}
+
+	network1.ServerListen(kademlia1)
+	network2.ServerListen(kademlia2)
+
+	value, _, found, err := network1.SendFindDataMessage(&node2, target)
+	if err != nil {
+		t.Fatalf("SendFindDataMessage failed: %v", err)
+	}
+	if !found || len(value) != 0 {
+		t.Fatalf("expected an empty value to be found, got found=%t value=%q", found, value)
+	}
+}
+
 func TestPingRealNetowrk(t *testing.T) {
 	real := NewRealNetwork()
 

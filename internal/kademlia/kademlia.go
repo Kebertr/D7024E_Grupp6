@@ -2,10 +2,11 @@ package kademlia
 
 import (
 	"errors"
+	sync "sync"
 )
 
 const (
-	alpha         = 1 // Number of parallel queries
+	alpha         = 3 // Number of parallel queries
 	shortListSize = bucketSize
 )
 
@@ -73,12 +74,77 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 	return candidates.contacts, nil
 }
 
-func (kademlia *Kademlia) LookupData(hash string) {
-	// TODO
+func (kademlia *Kademlia) LookupData(hash string) ([]byte, error) {
+	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
+		return nil, errors.New("invalid lookup arguments")
+	}
+
+	targetID := NewKademliaID(hash)
+	if targetID == nil {
+		return nil, errors.New("invalid data hash")
+	}
+
+	if value, ok := kademlia.Data[targetID.String()]; ok {
+		//Return a copy so orginial wont risk it being mutated
+		return append([]byte(nil), value...), nil
+	}
+
+	candidates := &ContactCandidates{}
+	candidates.Append(kademlia.RoutingTable.FindClosestContacts(targetID, shortListSize))
+	queried := make(map[string]bool)
+
+	for {
+		batch := NextUnqueried(candidates, queried, alpha)
+		if len(batch) == 0 {
+			return nil, errors.New("data not found")
+		}
+
+		results, err := QueryDataBatch(kademlia.Network, batch, targetID)
+		if err != nil {
+			return nil, err
+		}
+		for _, result := range results {
+			if result.found {
+				return result.value, nil
+			}
+			for _, contact := range result.contacts {
+				MergeClosest(candidates, contact, targetID, shortListSize)
+			}
+		}
+	}
 }
 
-func (kademlia *Kademlia) Store(data []byte) {
-	// TODO
+func (kademlia *Kademlia) Store(data []byte) error {
+	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
+		return errors.New("invalid store arguments")
+	}
+
+	targetID := NewValueID(data)
+	target := Contact{ID: targetID}
+	contacts, err := kademlia.LookupContact(&target)
+	if err != nil {
+		return err
+	}
+
+	// The node performing the lookup can itself be one of the k closest nodes.
+	candidates := &ContactCandidates{}
+	candidates.Append(contacts)
+	MergeClosest(candidates, kademlia.Contact, targetID, shortListSize)
+
+	var storeErr error
+	for _, contact := range candidates.GetContacts(candidates.Len()) {
+		if contact.ID.Equals(kademlia.Contact.ID) {
+			if kademlia.Data == nil {
+				kademlia.Data = make(map[string][]byte)
+			}
+			kademlia.Data[targetID.String()] = append([]byte(nil), data...)
+			continue
+		}
+		if err := kademlia.Network.SendStoreMessage(&contact, targetID, data); err != nil {
+			storeErr = err
+		}
+	}
+	return storeErr
 }
 
 // HELPER FUNCTIONS
@@ -108,8 +174,11 @@ func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 		contacts []Contact
 	}, len(batch))
 
+	var wg sync.WaitGroup
+	wg.Add(len(batch))
 	for i, contact := range batch {
 		go func(i int, contact Contact) {
+			defer wg.Done()
 			contacts, err := network.SendFindContactMessage(&contact, targetID)
 			if err != nil {
 				errCh <- err
@@ -122,6 +191,12 @@ func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 		}(i, contact)
 
 	}
+	wg.Wait()
+	select {
+	case err := <-errCh:
+		return nil, err
+	default:
+	}
 
 	for i := 0; i < len(batch); i++ {
 		select {
@@ -132,6 +207,54 @@ func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 		}
 	}
 
+	return results, nil
+}
+
+type dataQueryResult struct {
+	value    []byte
+	contacts []Contact
+	found    bool
+}
+
+func QueryDataBatch(network *Network, batch []Contact, targetID *KademliaID) ([]dataQueryResult, error) {
+	results := make([]dataQueryResult, len(batch))
+	errCh := make(chan error, len(batch))
+	resultCh := make(chan struct {
+		index  int
+		result dataQueryResult
+	}, len(batch))
+
+	var wg sync.WaitGroup
+	wg.Add(len(batch))
+	for i, contact := range batch {
+		go func(i int, contact Contact) {
+			defer wg.Done()
+			value, contacts, found, err := network.SendFindDataMessage(&contact, targetID)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			resultCh <- struct {
+				index  int
+				result dataQueryResult
+			}{i, dataQueryResult{value: value, contacts: contacts, found: found}}
+		}(i, contact)
+	}
+	wg.Wait()
+	select {
+	case err := <-errCh:
+		return nil, err
+	default:
+	}
+
+	for i := 0; i < len(batch); i++ {
+		select {
+		case err := <-errCh:
+			return nil, err
+		case result := <-resultCh:
+			results[result.index] = result.result
+		}
+	}
 	return results, nil
 }
 
@@ -181,6 +304,9 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 	case "FIND_NODE":
 		return kademlia.FindReceiverNodes(msg)
 
+	case "FIND_VALUE":
+		return kademlia.FindReceiverData(msg)
+
 	case "PING_RETURN":
 		kademlia.Network.receive <- msg
 		return nil
@@ -189,8 +315,50 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 		kademlia.Network.receive <- msg
 		return nil
 
+	case "FIND_VALUE_RESPONSE":
+		kademlia.Network.receive <- msg
+		return nil
+
+	case "STORE":
+		return kademlia.handleStore(msg)
+
+	case "STORE_RESPONSE":
+		kademlia.Network.receive <- msg
+		return nil
+
+	case "STORE_ERROR":
+		kademlia.Network.receive <- msg
+		return nil
 	}
 	return errors.New("No of those functions exists")
+}
+
+func (kademlia *Kademlia) FindReceiverData(msg Message) error {
+	if msg.Target == nil {
+		return errors.New("find value message has no target")
+	}
+
+	if value, ok := kademlia.Data[msg.Target.String()]; ok {
+		message := Message{
+			MessageId: msg.MessageId,
+			From:      kademlia.Contact,
+			To:        msg.From.Address,
+			Type:      "FIND_VALUE_RESPONSE",
+			Value:     append([]byte(nil), value...),
+			Found:     true,
+		}
+		return kademlia.Network.listener.Send(message)
+	}
+
+	contacts := kademlia.RoutingTable.FindClosestContacts(msg.Target, shortListSize)
+	message := Message{
+		MessageId: msg.MessageId,
+		From:      kademlia.Contact,
+		To:        msg.From.Address,
+		Type:      "FIND_VALUE_RESPONSE",
+		Contacts:  contacts,
+	}
+	return kademlia.Network.listener.Send(message)
 }
 
 func (kademlia *Kademlia) handlePing(msg Message) error {
@@ -233,4 +401,36 @@ func (kademlia *Kademlia) Close() error {
 	}
 
 	return kademlia.Network.Close()
+func (kademlia *Kademlia) handleStore(msg Message) error {
+	if msg.Target == nil {
+		return kademlia.Network.listener.Send(Message{
+			MessageId: msg.MessageId,
+			From:      kademlia.Contact,
+			To:        msg.From.Address,
+			Type:      "STORE_ERROR",
+		})
+	}
+	// reject mappings where the key isn't the hash of the value (K = hash(V))
+	if !msg.Target.Equals(NewValueID(msg.Value)) {
+		return kademlia.Network.listener.Send(Message{
+			MessageId: msg.MessageId,
+			From:      kademlia.Contact,
+			To:        msg.From.Address,
+			Type:      "STORE_ERROR",
+		})
+	}
+	if kademlia.Data == nil {
+		kademlia.Data = make(map[string][]byte)
+	}
+
+	kademlia.Data[msg.Target.String()] = append([]byte(nil), msg.Value...)
+
+	message := Message{
+		MessageId: msg.MessageId,
+		From:      kademlia.Contact,
+		To:        msg.From.Address,
+		Type:      "STORE_RESPONSE",
+	}
+
+	return kademlia.Network.listener.Send(message)
 }
