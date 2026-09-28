@@ -74,19 +74,19 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 	return candidates.contacts, nil
 }
 
-func (kademlia *Kademlia) LookupData(hash string) ([]byte, error) {
+func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
-		return nil, errors.New("invalid lookup arguments")
+		return nil, kademlia.Contact, errors.New("invalid lookup arguments")
 	}
 
 	targetID := NewKademliaID(hash)
 	if targetID == nil {
-		return nil, errors.New("invalid data hash")
+		return nil, kademlia.Contact, errors.New("invalid data hash")
 	}
 
 	if value, ok := kademlia.Data[targetID.String()]; ok {
 		//Return a copy so orginial wont risk it being mutated
-		return append([]byte(nil), value...), nil
+		return append([]byte(nil), value...), kademlia.Contact, nil
 	}
 
 	candidates := &ContactCandidates{}
@@ -96,16 +96,16 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, error) {
 	for {
 		batch := NextUnqueried(candidates, queried, alpha)
 		if len(batch) == 0 {
-			return nil, errors.New("data not found")
+			return nil, kademlia.Contact, errors.New("data not found")
 		}
 
 		results, err := QueryDataBatch(kademlia.Network, batch, targetID)
 		if err != nil {
-			return nil, err
+			return nil, kademlia.Contact, err
 		}
 		for _, result := range results {
 			if result.found {
-				return result.value, nil
+				return result.value, kademlia.Contact, nil
 			}
 			for _, contact := range result.contacts {
 				MergeClosest(candidates, contact, targetID, shortListSize)

@@ -124,13 +124,13 @@ func runShell() {
 		case "exit", "quit", "q":
 			return
 		case "help":
-			fmt.Println("ping <ip> <port> | put <value> | get <key> | exit")
+			fmt.Println("ping <ip> <port> | put <value> | get <key> <filename>| exit")
 		case "ping":
 			shellPing(fields[1:])
 		case "put":
-			shellput(fields[1:])
+			shellput(fields[0:])
 		case "get":
-			shellGet(fields[1:])
+			shellGet(fields[0:])
 		case "show rt":
 			//TODO
 		case "show dt":
@@ -191,12 +191,12 @@ func shellput(args []string) {
 
 func shellGet(args []string) {
 	if len(args) != 2 && len(args) != 3 {
-		fmt.Println("Usage: get <key>")
+		fmt.Println("Usage: get <key> <filename>")
 		return
 	}
 	search := args[1]
 
-	value, ok := node.LookupData(search)
+	value, sender, ok := node.LookupData(search)
 	if ok != nil {
 		fmt.Println("Key not found")
 		return
@@ -204,6 +204,7 @@ func shellGet(args []string) {
 
 	if len(args) == 2 {
 		fmt.Println("Value:", string(value))
+		fmt.Println("The node that sent it:", sender.Address)
 	} else {
 		filename := args[2]
 		err := os.WriteFile(filename, value, 0644)
@@ -211,5 +212,6 @@ func shellGet(args []string) {
 			fmt.Println(err)
 		}
 		fmt.Println("Added it to file ", filename)
+		fmt.Println("The node that sent it:", sender.Address)
 	}
 }
