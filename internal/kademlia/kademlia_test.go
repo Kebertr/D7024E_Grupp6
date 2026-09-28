@@ -144,9 +144,12 @@ func TestLookupDataFindsRemoteValue(t *testing.T) {
 	network1.ServerListen(kademlia1)
 	network2.ServerListen(kademlia2)
 
-	result, err := kademlia1.LookupData(targetID.String())
+	result, sender, err := kademlia1.LookupData(targetID.String())
 	if err != nil {
 		t.Fatalf("LookupData failed: %v", err)
+	}
+	if sender.Address != node2.Address {
+		t.Fatalf("This should give the node2 as sender.")
 	}
 	if string(result) != string(data) {
 		t.Fatalf("expected value %q, got %q", data, result)

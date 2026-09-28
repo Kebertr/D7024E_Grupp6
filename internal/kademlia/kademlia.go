@@ -86,7 +86,7 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 
 	if value, ok := kademlia.Data[targetID.String()]; ok {
 		//Return a copy so orginial wont risk it being mutated
-		return append([]byte(nil), value...), kademlia.Contact, nil
+		return append([]byte(nil), value...), Contact{}, nil
 	}
 
 	candidates := &ContactCandidates{}
@@ -103,9 +103,9 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 		if err != nil {
 			return nil, kademlia.Contact, err
 		}
-		for _, result := range results {
+		for i, result := range results {
 			if result.found {
-				return result.value, kademlia.Contact, nil
+				return result.value, batch[i], nil
 			}
 			for _, contact := range result.contacts {
 				MergeClosest(candidates, contact, targetID, shortListSize)
