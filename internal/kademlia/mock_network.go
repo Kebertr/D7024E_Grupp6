@@ -14,9 +14,11 @@ type mockNetwork struct {
 	packet_loss float64
 }
 
-func NewMockNetwork() Transport {
+func NewMockNetwork() *mockNetwork {
 	return &mockNetwork{
-		listeners: make(map[Address]chan Message),
+		listeners:   make(map[Address]chan Message),
+		latency:     0,
+		packet_loss: 0,
 	}
 }
 

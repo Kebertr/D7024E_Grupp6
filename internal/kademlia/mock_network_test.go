@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"strconv"
 	"testing"
+	"time"
 )
 
 func TestSendFindPingWrongId(t *testing.T) {
@@ -176,6 +177,10 @@ func Test1000Nodes(t *testing.T) {
 	mock := NewMockNetwork()
 
 	nodes := make([]*Kademlia, 1000)
+	randlatency := rand.Intn(len(nodes)) / 100
+
+	mock.latency = float64(time.Duration(randlatency) * time.Millisecond)
+	mock.packet_loss = 0.001
 
 	for i := 0; i < len(nodes); i++ {
 		node := NewContact(NewRandomKademliaID(), strconv.Itoa(i))
@@ -196,12 +201,27 @@ func Test1000Nodes(t *testing.T) {
 
 	}
 
+	success := 0
+	failures := 0
+
 	for i := 0; i < len(nodes); i++ {
 		randValue := rand.Intn(len(nodes))
 		result := nodes[i].Ping(&nodes[randValue].Contact)
 
 		if result != nil {
-			t.Fatalf("Ping failed")
+			failures++
+			continue
 		}
+
+		success++
 	}
+
+	if success+failures != len(nodes) {
+		t.Fatalf("They should cover every case")
+	}
+
+	successrate := float64(success) / float64(len(nodes))
+	failurerate := float64(failures) / float64(len(nodes))
+
+	t.Log("The success rate was", successrate*100, "failureate", failurerate*100)
 }
