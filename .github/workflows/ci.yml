@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: #can add more branches if needed
+      - main
+  pull_request:
+    branches:
+        - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run all tests #add more directories later on
+        run: ./test.sh
+
+
+  coverage:
+        name: Run coverage Test
+        runs-on: ubuntu-latest
+
+        steps:
+          - name: Check out repository
+            uses: actions/checkout@v4
+
+          - name: Set up Go
+            uses: actions/setup-go@v5
+            with:
+              go-version-file: go.mod
+              cache: true
+
+          - name: Run coverage test
+            run: ./coveragereport.sh
+
+# Add for docker later when docker is added

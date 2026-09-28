@@ -35,6 +35,7 @@ type Message struct {
 	Target    *KademliaID
 	Contacts  []Contact
 	Value     []byte
+	Found     bool
 }
 
 func (network *Network) SendPingMessage(contact *Contact) error {
@@ -60,7 +61,11 @@ func (network *Network) SendPingMessage(contact *Contact) error {
 		if response.MessageId != id {
 			return errors.New("The Id do not match")
 		}
+<<<<<<< HEAD
 	case <-time.After(2 * time.Second):
+=======
+	case <-time.After(5 * time.Second):
+>>>>>>> origin/main
 		return errors.New("ping timed out")
 	}
 
@@ -98,16 +103,71 @@ func (network *Network) SendFindContactMessage(contact *Contact, targetId *Kadem
 
 }
 
-func (network *Network) SendFindDataMessage(hash string) {
-	// TODO
+func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID) ([]byte, []Contact, bool, error) {
+	if contact == nil || target == nil {
+		return nil, nil, false, errors.New("contact and target are required")
+	}
+
+	id := createMessageId()
+	msg := Message{
+		MessageId: id,
+		From:      network.contact,
+		To:        contact.Address,
+		Type:      "FIND_VALUE",
+		Target:    target,
+	}
+
+	err := network.listener.Send(msg)
+	if err != nil {
+		return nil, nil, false, err
+	}
+
+	response := <-network.receive
+	if response.MessageId != id {
+		return nil, nil, false, errors.New("The Id do not match")
+	}
+	if response.Type != "FIND_VALUE_RESPONSE" {
+		return nil, nil, false, errors.New("invalid find data response")
+	}
+	if response.Found {
+		return append([]byte(nil), response.Value...), nil, true, nil
+	}
+	return nil, response.Contacts, false, nil
 }
 
-func (network *Network) SendStoreMessage(data []byte) {
-	// TODO
+func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, data []byte) error {
+	if contact == nil {
+		return errors.New("contact is required")
+	}
+
+	id := createMessageId()
+
+	msg := Message{
+		MessageId: id,
+		From:      network.contact,
+		To:        contact.Address,
+		Type:      "STORE",
+		Target:    target,
+		Value:     append([]byte(nil), data...),
+	}
+
+	err := network.listener.Send(msg)
+	if err != nil {
+		return err
+	}
+
+	response := <-network.receive // Should we have timeouts? Risk of waiting endlessly
+	if response.MessageId != id || response.Type != "STORE_RESPONSE" {
+		if response.MessageId == id && response.Type == "STORE_ERROR" {
+			return errors.New("store rejected by receiver")
+		}
+		return errors.New("invalid store response")
+	}
+	return nil
 }
 
 // This is for receiving each message and send it to the right function
-func (network *Network) serverListen(kademlia *Kademlia) {
+func (network *Network) ServerListen(kademlia *Kademlia) {
 	go func() {
 		for {
 			msg, err := network.listener.Recv()
@@ -156,4 +216,12 @@ func initNetwork(transport Transport, contact Contact) (*Network, error) {
 func createMessageId() messageId {
 	Id := NewRandomKademliaID()
 	return messageId(*Id)
+}
+
+func (network *Network) Close() error {
+	if network == nil || network.listener == nil {
+		return nil
+	}
+
+	return network.listener.Close()
 }
