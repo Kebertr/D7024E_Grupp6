@@ -19,8 +19,8 @@ var node *kademlia.Kademlia
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "D7024E_Grupp6 kademlia",
-	Short: "d7024e kademlia distributed network lab",
+	Use:   "kademlia",
+	Short: "Run a kademlia distributed hash table",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -65,7 +65,7 @@ func init() {
 	var startIp string
 	var startPort int
 	var startId string
-	var bootstrapAddrs []string
+	var bootstrapNode string
 
 	/*
 		Creates and runs a local kademlia node
@@ -89,16 +89,26 @@ func init() {
 				node = nil
 			}()
 
-			if len(bootstrapAddrs) > 0 {
-				fmt.Println("Bootstrap addresses are not supported by the current Kademlia API")
+			if bootstrapNode != "" {
+				boostrap := kademlia.NewContact(nil, bootstrapNode)
+
+				err = node.Ping(&boostrap)
+
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					fmt.Println("Connected to the bootstrap node")
+				}
+
 			}
+
 			runShell()
 		},
 	}
 	startCmd.Flags().StringVarP(&startIp, "ip", "i", "127.0.0.1", "IP address of this node")
 	startCmd.Flags().IntVarP(&startPort, "port", "p", 0, "Port number of this node")
 	startCmd.Flags().StringVar(&startId, "id", kademlia.NewRandomKademliaID().String(), "Kademlia ID of this node")
-	startCmd.Flags().StringSliceVar(&bootstrapAddrs, "bootstrap", nil, "Bootstrap addresses")
+	startCmd.Flags().StringVar(&bootstrapNode, "bootstrap", "", "Bootstrap node address")
 	rootCmd.AddCommand(startCmd)
 }
 
@@ -177,16 +187,13 @@ func shellput(args []string) {
 		fmt.Println(err)
 		return
 	}
-
-	key := kademlia.NewValueID(data)
-
 	err = node.Store(data)
 
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	fmt.Println("Stored succeded with key", key)
+	fmt.Println("Stored succeded with key", kademlia.NewValueID(data))
 }
 
 func shellGet(args []string) {
