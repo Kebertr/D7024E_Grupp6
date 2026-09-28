@@ -59,6 +59,8 @@ func TestSendFindPingWrongId(t *testing.T) {
 	if err.Error() != "The Id do not match" {
 		t.Fatalf("Not the error we expected")
 	}
+
+	kademlia1.Network.listener.Close()
 }
 
 func TestSendFindContactMessage(t *testing.T) {
@@ -113,6 +115,9 @@ func TestSendFindContactMessage(t *testing.T) {
 			t.Error("LookupContact returned unexpected contact")
 		}
 	}
+
+	kademlia1.Network.listener.Close()
+	kademlia2.Network.listener.Close()
 }
 
 func TestSendFindContactWrongId(t *testing.T) {
@@ -171,9 +176,10 @@ func TestSendFindContactWrongId(t *testing.T) {
 	if err.Error() != "The Id do not match" {
 		t.Fatalf("Not the error we expected")
 	}
+
+	kademlia1.Network.listener.Close()
 }
 
-<<<<<<< HEAD:internal/kademlia/mock_network_test.go
 func Test1000Nodes(t *testing.T) {
 	mock := NewMockNetwork()
 
@@ -198,7 +204,7 @@ func Test1000Nodes(t *testing.T) {
 			Data:         make(map[string][]byte),
 		}
 
-		network.serverListen(nodes[i])
+		network.ServerListen(nodes[i])
 
 	}
 
@@ -225,7 +231,7 @@ func Test1000Nodes(t *testing.T) {
 	failurerate := float64(failures) / float64(len(nodes))
 
 	t.Log("The success rate was", successrate*100, "failureate", failurerate*100)
-=======
+}
 func TestSendFindDataMessageOutcomes(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -276,7 +282,10 @@ func TestSendFindDataMessageOutcomes(t *testing.T) {
 			if !test.wantFound && (len(contacts) != 1 || !contacts[0].ID.Equals(node3.ID)) {
 				t.Fatalf("expected node3 as a closer contact, got %v", contacts)
 			}
+			kademlia1.Network.listener.Close()
+			kademlia2.Network.listener.Close()
 		})
+
 	}
 }
 
@@ -323,6 +332,9 @@ func TestSendStoreMessage(t *testing.T) {
 	if string(stored) != string(data) {
 		t.Fatalf("expected stored value %q, got %q", data, stored)
 	}
+
+	kademlia1.Network.listener.Close()
+	kademlia2.Network.listener.Close()
 }
 
 func TestSendStoreMessageRejectsMismatchedTarget(t *testing.T) {
@@ -348,5 +360,7 @@ func TestSendStoreMessageRejectsMismatchedTarget(t *testing.T) {
 	if err := network1.SendStoreMessage(&node2, wrongTarget, []byte("value")); err == nil {
 		t.Fatal("expected the receiver to reject a target that does not hash from the value")
 	}
->>>>>>> origin/main:internal/kademlia/network_test.go
+
+	kademlia1.Network.listener.Close()
+	kademlia2.Network.listener.Close()
 }

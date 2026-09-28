@@ -61,11 +61,7 @@ func (network *Network) SendPingMessage(contact *Contact) error {
 		if response.MessageId != id {
 			return errors.New("The Id do not match")
 		}
-<<<<<<< HEAD
 	case <-time.After(2 * time.Second):
-=======
-	case <-time.After(5 * time.Second):
->>>>>>> origin/main
 		return errors.New("ping timed out")
 	}
 

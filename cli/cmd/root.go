@@ -124,27 +124,13 @@ func runShell() {
 		case "exit", "quit", "q":
 			return
 		case "help":
-			fmt.Println("ping <ip> <port> | put <key> <value> | get <key> | exit")
+			fmt.Println("ping <ip> <port> | put <value> | get <key> | exit")
 		case "ping":
 			shellPing(fields[1:])
 		case "put":
-			if len(fields) < 3 {
-				fmt.Println("Usage: put <key> <value>")
-				continue
-			}
-			node.Data[fields[1]] = []byte(strings.Join(fields[2:], " "))
-			fmt.Println("Stored", fields[1])
+			shellput(fields[1:])
 		case "get":
-			if len(fields) != 2 {
-				fmt.Println("Usage: get <key>")
-				continue
-			}
-			value, ok := node.Data[fields[1]]
-			if !ok {
-				fmt.Println("Key not found")
-				continue
-			}
-			fmt.Println("Value:", string(value))
+			shellGet(fields[1:])
 		case "show rt":
 			//TODO
 		case "show dt":
@@ -176,4 +162,54 @@ func shellPing(args []string) {
 		return
 	}
 	fmt.Printf("Pinging from %s in %v\n", contact.Address, duration)
+}
+
+func shellput(args []string) {
+	if len(args) != 2 {
+		fmt.Println("Usage: put <value>")
+		return
+	}
+	value := args[1]
+
+	data, err := os.ReadFile(value)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	key := kademlia.NewValueID(data)
+
+	err = node.Store(data)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Stored succeded with key", key)
+}
+
+func shellGet(args []string) {
+	if len(args) != 2 && len(args) != 3 {
+		fmt.Println("Usage: get <key>")
+		return
+	}
+	search := args[1]
+
+	value, ok := node.LookupData(search)
+	if ok != nil {
+		fmt.Println("Key not found")
+		return
+	}
+
+	if len(args) == 2 {
+		fmt.Println("Value:", string(value))
+	} else {
+		filename := args[2]
+		err := os.WriteFile(filename, value, 0644)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println("Added it to file ", filename)
+	}
 }

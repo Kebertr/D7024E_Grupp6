@@ -307,6 +307,9 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 	case "FIND_VALUE":
 		return kademlia.FindReceiverData(msg)
 
+	case "STORE":
+		return kademlia.handleStore(msg)
+
 	case "PING_RETURN":
 		kademlia.Network.receive <- msg
 		return nil
@@ -318,9 +321,6 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 	case "FIND_VALUE_RESPONSE":
 		kademlia.Network.receive <- msg
 		return nil
-
-	case "STORE":
-		return kademlia.handleStore(msg)
 
 	case "STORE_RESPONSE":
 		kademlia.Network.receive <- msg
@@ -401,6 +401,8 @@ func (kademlia *Kademlia) Close() error {
 	}
 
 	return kademlia.Network.Close()
+}
+
 func (kademlia *Kademlia) handleStore(msg Message) error {
 	if msg.Target == nil {
 		return kademlia.Network.listener.Send(Message{
