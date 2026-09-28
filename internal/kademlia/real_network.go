@@ -84,7 +84,7 @@ func (c *realConnection) Send(msg Message) error {
 }
 
 func (c *realConnection) Recv() (Message, error) {
-	buffer := make([]byte, 1000)
+	buffer := make([]byte, 30000)
 
 	var msgProto MessageProto
 

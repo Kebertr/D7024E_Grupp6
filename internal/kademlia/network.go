@@ -38,11 +38,11 @@ type Message struct {
 	Found     bool
 }
 
-func (network *Network) SendPingMessage(contact *Contact) error {
+func (network *Network) SendPingMessage(contact *Contact) (Contact, error) {
 	id := createMessageId()
 
 	if contact == nil {
-		return errors.New("There should be a node")
+		return Contact{}, errors.New("There should be a node")
 	}
 
 	msg := Message{
@@ -53,19 +53,18 @@ func (network *Network) SendPingMessage(contact *Contact) error {
 	}
 	err := network.listener.Send(msg)
 	if err != nil {
-		return err
+		return Contact{}, err
 	}
 
 	select {
 	case response := <-network.receive:
 		if response.MessageId != id {
-			return errors.New("The Id do not match")
+			return Contact{}, errors.New("The Id do not match")
 		}
+		return response.From, nil
 	case <-time.After(2 * time.Second):
-		return errors.New("ping timed out")
+		return Contact{}, errors.New("ping timed out")
 	}
-
-	return nil
 }
 
 func (network *Network) SendFindContactMessage(contact *Contact, targetId *KademliaID) ([]Contact, error) {

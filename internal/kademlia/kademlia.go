@@ -18,7 +18,14 @@ type Kademlia struct {
 }
 
 func (kademlia *Kademlia) Ping(contact *Contact) error {
-	return kademlia.Network.SendPingMessage(contact)
+	resp, err := kademlia.Network.SendPingMessage(contact)
+	if err != nil {
+		return err
+	}
+
+	kademlia.RoutingTable.AddContact(resp)
+
+	return nil
 }
 
 func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
@@ -86,7 +93,7 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 
 	if value, ok := kademlia.Data[targetID.String()]; ok {
 		//Return a copy so orginial wont risk it being mutated
-		return append([]byte(nil), value...), Contact{}, nil
+		return append([]byte(nil), value...), kademlia.Contact, nil
 	}
 
 	candidates := &ContactCandidates{}
