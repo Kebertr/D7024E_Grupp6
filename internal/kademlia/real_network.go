@@ -2,17 +2,15 @@ package kademlia
 
 import (
 	"net"
-	"sync"
 
 	"google.golang.org/protobuf/proto"
 )
 
 type realNetwork struct {
-	mu        sync.RWMutex
 	listeners map[Address]chan Message
 }
 
-func NewRealNetwork() Transport {
+func NewRealNetwork() *realNetwork {
 	return &realNetwork{
 		listeners: make(map[Address]chan Message),
 	}

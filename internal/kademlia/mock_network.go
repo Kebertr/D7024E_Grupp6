@@ -2,17 +2,23 @@ package kademlia
 
 import (
 	"errors"
+	"math/rand"
 	"sync"
+	"time"
 )
 
 type mockNetwork struct {
-	mu        sync.RWMutex
-	listeners map[Address]chan Message
+	mu          sync.RWMutex
+	listeners   map[Address]chan Message
+	latency     float64
+	packet_loss float64
 }
 
-func NewMockNetwork() Transport {
+func NewMockNetwork() *mockNetwork {
 	return &mockNetwork{
-		listeners: make(map[Address]chan Message),
+		listeners:   make(map[Address]chan Message),
+		latency:     0,
+		packet_loss: 0,
 	}
 }
 
@@ -43,6 +49,12 @@ func (c *mockConnection) Send(msg Message) error {
 		c.network.mu.RUnlock()
 		return errors.New("destination address not found")
 	}
+
+	if rand.Float64() < c.network.packet_loss {
+		return nil
+	}
+
+	time.Sleep(time.Duration(c.network.latency))
 
 	// Keep the lock while sending to prevent the channel from being closed
 	select {

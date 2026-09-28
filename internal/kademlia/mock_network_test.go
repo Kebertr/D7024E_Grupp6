@@ -1,6 +1,11 @@
 package kademlia
 
-import "testing"
+import (
+	"math/rand"
+	"strconv"
+	"testing"
+	"time"
+)
 
 func TestSendFindPingWrongId(t *testing.T) {
 	mock := NewMockNetwork()
@@ -168,6 +173,59 @@ func TestSendFindContactWrongId(t *testing.T) {
 	}
 }
 
+<<<<<<< HEAD:internal/kademlia/mock_network_test.go
+func Test1000Nodes(t *testing.T) {
+	mock := NewMockNetwork()
+
+	nodes := make([]*Kademlia, 1000)
+	randlatency := rand.Intn(len(nodes)) / 100
+
+	mock.latency = float64(time.Duration(randlatency) * time.Millisecond)
+	mock.packet_loss = 0.001
+
+	for i := 0; i < len(nodes); i++ {
+		node := NewContact(NewRandomKademliaID(), strconv.Itoa(i))
+
+		network, err := initNetwork(mock, node)
+		if err != nil {
+			t.Error(err)
+		}
+
+		nodes[i] = &Kademlia{
+			Contact:      node,
+			RoutingTable: NewRoutingTable(node),
+			Network:      network,
+			Data:         make(map[string][]byte),
+		}
+
+		network.serverListen(nodes[i])
+
+	}
+
+	success := 0
+	failures := 0
+
+	for i := 0; i < len(nodes); i++ {
+		randValue := rand.Intn(len(nodes))
+		result := nodes[i].Ping(&nodes[randValue].Contact)
+
+		if result != nil {
+			failures++
+			continue
+		}
+
+		success++
+	}
+
+	if success+failures != len(nodes) {
+		t.Fatalf("They should cover every case")
+	}
+
+	successrate := float64(success) / float64(len(nodes))
+	failurerate := float64(failures) / float64(len(nodes))
+
+	t.Log("The success rate was", successrate*100, "failureate", failurerate*100)
+=======
 func TestSendFindDataMessageOutcomes(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -290,4 +348,5 @@ func TestSendStoreMessageRejectsMismatchedTarget(t *testing.T) {
 	if err := network1.SendStoreMessage(&node2, wrongTarget, []byte("value")); err == nil {
 		t.Fatal("expected the receiver to reject a target that does not hash from the value")
 	}
+>>>>>>> origin/main:internal/kademlia/network_test.go
 }
