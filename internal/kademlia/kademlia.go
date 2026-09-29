@@ -318,23 +318,28 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 		return kademlia.handleStore(msg)
 
 	case "PING_RETURN":
-		kademlia.Network.receive <- msg
+		respChannel := kademlia.Network.receive[msg.MessageId]
+		respChannel <- msg
 		return nil
 
 	case "FIND_NODE_RESPONSE":
-		kademlia.Network.receive <- msg
+		respChannel := kademlia.Network.receive[msg.MessageId]
+		respChannel <- msg
 		return nil
 
 	case "FIND_VALUE_RESPONSE":
-		kademlia.Network.receive <- msg
+		respChannel := kademlia.Network.receive[msg.MessageId]
+		respChannel <- msg
 		return nil
 
 	case "STORE_RESPONSE":
-		kademlia.Network.receive <- msg
+		respChannel := kademlia.Network.receive[msg.MessageId]
+		respChannel <- msg
 		return nil
 
 	case "STORE_ERROR":
-		kademlia.Network.receive <- msg
+		respChannel := kademlia.Network.receive[msg.MessageId]
+		respChannel <- msg
 		return nil
 	}
 	return errors.New("No of those functions exists")

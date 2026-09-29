@@ -10,7 +10,8 @@ type Network struct {
 	transport Transport
 	contact   Contact
 	listener  Connection
-	receive   chan Message
+	recmu     sync.RWMutex
+	receive   map[messageId]chan Message
 	wg        sync.WaitGroup
 }
 
@@ -45,6 +46,12 @@ func (network *Network) SendPingMessage(contact *Contact) (Contact, error) {
 		return Contact{}, errors.New("There should be a node")
 	}
 
+	respChannel := make(chan Message, 1)
+	//We need to lock it since otherwise it might been written to multiple times and read from
+	network.recmu.Lock()
+	network.receive[id] = respChannel
+	network.recmu.Unlock()
+
 	msg := Message{
 		MessageId: id,
 		From:      network.contact,
@@ -57,7 +64,7 @@ func (network *Network) SendPingMessage(contact *Contact) (Contact, error) {
 	}
 
 	select {
-	case response := <-network.receive:
+	case response := <-respChannel:
 		if response.MessageId != id {
 			return Contact{}, errors.New("The Id do not match")
 		}
@@ -74,6 +81,10 @@ func (network *Network) SendFindContactMessage(contact *Contact, targetId *Kadem
 	if contact == nil || targetId == nil {
 		return nil, errors.New("Either contact or targetId is nil")
 	}
+	respChannel := make(chan Message, 1)
+	network.recmu.Lock()
+	network.receive[id] = respChannel
+	network.recmu.Unlock()
 
 	msg := Message{
 		MessageId: id,
@@ -88,7 +99,7 @@ func (network *Network) SendFindContactMessage(contact *Contact, targetId *Kadem
 		return nil, err
 	}
 
-	response := <-network.receive
+	response := <-respChannel
 
 	if response.MessageId != id {
 		return nil, errors.New("The Id do not match")
@@ -104,6 +115,12 @@ func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID
 	}
 
 	id := createMessageId()
+
+	respChannel := make(chan Message, 1)
+	network.recmu.Lock()
+	network.receive[id] = respChannel
+	network.recmu.Unlock()
+
 	msg := Message{
 		MessageId: id,
 		From:      network.contact,
@@ -117,7 +134,7 @@ func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID
 		return nil, nil, false, err
 	}
 
-	response := <-network.receive
+	response := <-respChannel
 	if response.MessageId != id {
 		return nil, nil, false, errors.New("The Id do not match")
 	}
@@ -137,6 +154,11 @@ func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, d
 
 	id := createMessageId()
 
+	respChannel := make(chan Message, 1)
+	network.recmu.Lock()
+	network.receive[id] = respChannel
+	network.recmu.Unlock()
+
 	msg := Message{
 		MessageId: id,
 		From:      network.contact,
@@ -151,7 +173,7 @@ func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, d
 		return err
 	}
 
-	response := <-network.receive // Should we have timeouts? Risk of waiting endlessly
+	response := <-respChannel // Should we have timeouts? Risk of waiting endlessly
 	if response.MessageId != id || response.Type != "STORE_RESPONSE" {
 		if response.MessageId == id && response.Type == "STORE_ERROR" {
 			return errors.New("store rejected by receiver")
@@ -202,15 +224,10 @@ func initNetwork(transport Transport, contact Contact) (*Network, error) {
 		transport: transport,
 		contact:   contact,
 		listener:  listener,
-		receive:   make(chan Message, 1),
+		receive:   make(map[messageId]chan Message),
 	}
 
 	return network, nil
-}
-
-func createMessageId() messageId {
-	Id := NewRandomKademliaID()
-	return messageId(*Id)
 }
 
 func (network *Network) Close() error {
@@ -219,4 +236,9 @@ func (network *Network) Close() error {
 	}
 
 	return network.listener.Close()
+}
+
+func createMessageId() messageId {
+	Id := NewRandomKademliaID()
+	return messageId(*Id)
 }
