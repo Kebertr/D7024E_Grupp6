@@ -11,12 +11,10 @@ func TestFindValueRealNetworkPreservesEmptyValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = network1.listener.Close() })
 	network2, err := initNetwork(real, node2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = network2.listener.Close() })
 
 	node1.Address = network1.listener.(*realConnection).conn.LocalAddr().String()
 	node2.Address = network2.listener.(*realConnection).conn.LocalAddr().String()
@@ -42,6 +40,10 @@ func TestFindValueRealNetworkPreservesEmptyValue(t *testing.T) {
 	if !found || len(value) != 0 {
 		t.Fatalf("expected an empty value to be found, got found=%t value=%q", found, value)
 	}
+
+	kademlia1.Network.listener.Close()
+	kademlia2.Network.listener.Close()
+
 }
 
 func TestPingRealNetowrk(t *testing.T) {

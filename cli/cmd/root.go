@@ -19,8 +19,8 @@ var node *kademlia.Kademlia
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "D7024E_Grupp6 kademlia",
-	Short: "d7024e kademlia distributed network lab",
+	Use:   "kademlia",
+	Short: "Run a kademlia distributed hash table",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -65,7 +65,7 @@ func init() {
 	var startIp string
 	var startPort int
 	var startId string
-	var bootstrapAddrs []string
+	var bootstrapNode string
 
 	/*
 		Creates and runs a local kademlia node
@@ -89,16 +89,26 @@ func init() {
 				node = nil
 			}()
 
-			if len(bootstrapAddrs) > 0 {
-				fmt.Println("Bootstrap addresses are not supported by the current Kademlia API")
+			if bootstrapNode != "" {
+				boostrap := kademlia.NewContact(nil, bootstrapNode)
+
+				err = node.Ping(&boostrap)
+
+				if err != nil {
+					fmt.Println(err)
+				} else {
+					fmt.Println("Connected to the bootstrap node")
+				}
+
 			}
+
 			runShell()
 		},
 	}
 	startCmd.Flags().StringVarP(&startIp, "ip", "i", "127.0.0.1", "IP address of this node")
 	startCmd.Flags().IntVarP(&startPort, "port", "p", 0, "Port number of this node")
 	startCmd.Flags().StringVar(&startId, "id", kademlia.NewRandomKademliaID().String(), "Kademlia ID of this node")
-	startCmd.Flags().StringSliceVar(&bootstrapAddrs, "bootstrap", nil, "Bootstrap addresses")
+	startCmd.Flags().StringVar(&bootstrapNode, "bootstrap", "", "Bootstrap node address")
 	rootCmd.AddCommand(startCmd)
 }
 
@@ -124,27 +134,13 @@ func runShell() {
 		case "exit", "quit", "q":
 			return
 		case "help":
-			fmt.Println("ping <ip> <port> | put <key> <value> | get <key> | exit")
+			fmt.Println("ping <ip> <port> | put <value> | get <key> <filename>| exit")
 		case "ping":
 			shellPing(fields[1:])
 		case "put":
-			if len(fields) < 3 {
-				fmt.Println("Usage: put <key> <value>")
-				continue
-			}
-			node.Data[fields[1]] = []byte(strings.Join(fields[2:], " "))
-			fmt.Println("Stored", fields[1])
+			shellput(fields[0:])
 		case "get":
-			if len(fields) != 2 {
-				fmt.Println("Usage: get <key>")
-				continue
-			}
-			value, ok := node.Data[fields[1]]
-			if !ok {
-				fmt.Println("Key not found")
-				continue
-			}
-			fmt.Println("Value:", string(value))
+			shellGet(fields[0:])
 		case "show rt":
 			//TODO
 		case "show dt":
@@ -176,4 +172,53 @@ func shellPing(args []string) {
 		return
 	}
 	fmt.Printf("Pinging from %s in %v\n", contact.Address, duration)
+}
+
+func shellput(args []string) {
+	if len(args) != 2 {
+		fmt.Println("Usage: put <value>")
+		return
+	}
+	value := args[1]
+
+	data, err := os.ReadFile(value)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	err = node.Store(data)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Stored succeded with key", kademlia.NewValueID(data))
+}
+
+func shellGet(args []string) {
+	if len(args) != 2 && len(args) != 3 {
+		fmt.Println("Usage: get <key> <filename>")
+		return
+	}
+	search := args[1]
+
+	value, sender, ok := node.LookupData(search)
+	if ok != nil {
+		fmt.Println("Key not found")
+		return
+	}
+
+	if len(args) == 2 {
+		fmt.Println("Value:", string(value))
+		fmt.Println("The node that sent it:", sender.Address)
+	} else {
+		filename := args[2]
+		err := os.WriteFile(filename, value, 0644)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println("Added it to file ", filename)
+		fmt.Println("The node that sent it:", sender.Address)
+	}
 }

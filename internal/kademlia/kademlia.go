@@ -18,7 +18,14 @@ type Kademlia struct {
 }
 
 func (kademlia *Kademlia) Ping(contact *Contact) error {
-	return kademlia.Network.SendPingMessage(contact)
+	resp, err := kademlia.Network.SendPingMessage(contact)
+	if err != nil {
+		return err
+	}
+
+	kademlia.RoutingTable.AddContact(resp)
+
+	return nil
 }
 
 func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
@@ -74,19 +81,19 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 	return candidates.contacts, nil
 }
 
-func (kademlia *Kademlia) LookupData(hash string) ([]byte, error) {
+func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
-		return nil, errors.New("invalid lookup arguments")
+		return nil, kademlia.Contact, errors.New("invalid lookup arguments")
 	}
 
 	targetID := NewKademliaID(hash)
 	if targetID == nil {
-		return nil, errors.New("invalid data hash")
+		return nil, kademlia.Contact, errors.New("invalid data hash")
 	}
 
 	if value, ok := kademlia.Data[targetID.String()]; ok {
 		//Return a copy so orginial wont risk it being mutated
-		return append([]byte(nil), value...), nil
+		return append([]byte(nil), value...), kademlia.Contact, nil
 	}
 
 	candidates := &ContactCandidates{}
@@ -96,16 +103,16 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, error) {
 	for {
 		batch := NextUnqueried(candidates, queried, alpha)
 		if len(batch) == 0 {
-			return nil, errors.New("data not found")
+			return nil, kademlia.Contact, errors.New("data not found")
 		}
 
 		results, err := QueryDataBatch(kademlia.Network, batch, targetID)
 		if err != nil {
-			return nil, err
+			return nil, kademlia.Contact, err
 		}
-		for _, result := range results {
+		for i, result := range results {
 			if result.found {
-				return result.value, nil
+				return result.value, batch[i], nil
 			}
 			for _, contact := range result.contacts {
 				MergeClosest(candidates, contact, targetID, shortListSize)
@@ -307,27 +314,32 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 	case "FIND_VALUE":
 		return kademlia.FindReceiverData(msg)
 
-	case "PING_RETURN":
-		kademlia.Network.receive <- msg
-		return nil
-
-	case "FIND_NODE_RESPONSE":
-		kademlia.Network.receive <- msg
-		return nil
-
-	case "FIND_VALUE_RESPONSE":
-		kademlia.Network.receive <- msg
-		return nil
-
 	case "STORE":
 		return kademlia.handleStore(msg)
 
+	case "PING_RETURN":
+		respChannel := kademlia.Network.receive[msg.MessageId]
+		respChannel <- msg
+		return nil
+
+	case "FIND_NODE_RESPONSE":
+		respChannel := kademlia.Network.receive[msg.MessageId]
+		respChannel <- msg
+		return nil
+
+	case "FIND_VALUE_RESPONSE":
+		respChannel := kademlia.Network.receive[msg.MessageId]
+		respChannel <- msg
+		return nil
+
 	case "STORE_RESPONSE":
-		kademlia.Network.receive <- msg
+		respChannel := kademlia.Network.receive[msg.MessageId]
+		respChannel <- msg
 		return nil
 
 	case "STORE_ERROR":
-		kademlia.Network.receive <- msg
+		respChannel := kademlia.Network.receive[msg.MessageId]
+		respChannel <- msg
 		return nil
 	}
 	return errors.New("No of those functions exists")
@@ -401,6 +413,8 @@ func (kademlia *Kademlia) Close() error {
 	}
 
 	return kademlia.Network.Close()
+}
+
 func (kademlia *Kademlia) handleStore(msg Message) error {
 	if msg.Target == nil {
 		return kademlia.Network.listener.Send(Message{
