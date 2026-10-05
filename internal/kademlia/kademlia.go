@@ -451,10 +451,10 @@ func (kademlia *Kademlia) handleStore(msg Message) error {
 			Type:      "STORE_ERROR",
 		})
 	}
-	kademlia.muData.Lock()
 	if kademlia.Data == nil {
 		kademlia.Data = make(map[string][]byte)
 	}
+	kademlia.muData.Lock()
 
 	kademlia.Data[msg.Target.String()] = msg.Value
 	kademlia.muData.Unlock()
