@@ -98,15 +98,15 @@ func (network *Network) SendFindContactMessage(contact *Contact, targetId *Kadem
 	if err != nil {
 		return nil, err
 	}
-
-	response := <-respChannel
-
-	if response.MessageId != id {
-		return nil, errors.New("The Id do not match")
+	select {
+	case response := <-respChannel:
+		if response.MessageId != id {
+			return nil, errors.New("The Id do not match")
+		}
+		return response.Contacts, nil
+	case <-time.After(2 * time.Second):
+		return nil, errors.New("find contact timed out")
 	}
-
-	return response.Contacts, nil
-
 }
 
 func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID) ([]byte, []Contact, bool, error) {
@@ -134,17 +134,22 @@ func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID
 		return nil, nil, false, err
 	}
 
-	response := <-respChannel
-	if response.MessageId != id {
-		return nil, nil, false, errors.New("The Id do not match")
+	select {
+	case response := <-respChannel:
+		if response.MessageId != id {
+			return nil, nil, false, errors.New("The Id do not match")
+		}
+		if response.Type != "FIND_VALUE_RESPONSE" {
+			return nil, nil, false, errors.New("invalid find data response")
+		}
+		if response.Found {
+			return response.Value, nil, true, nil
+		}
+		return nil, response.Contacts, false, nil
+	case <-time.After(2 * time.Second):
+		return nil, nil, false, errors.New("find data timed out")
 	}
-	if response.Type != "FIND_VALUE_RESPONSE" {
-		return nil, nil, false, errors.New("invalid find data response")
-	}
-	if response.Found {
-		return append([]byte(nil), response.Value...), nil, true, nil
-	}
-	return nil, response.Contacts, false, nil
+
 }
 
 func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, data []byte) error {
@@ -165,7 +170,7 @@ func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, d
 		To:        contact.Address,
 		Type:      "STORE",
 		Target:    target,
-		Value:     append([]byte(nil), data...),
+		Value:     data,
 	}
 
 	err := network.listener.Send(msg)
@@ -173,14 +178,18 @@ func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, d
 		return err
 	}
 
-	response := <-respChannel // Should we have timeouts? Risk of waiting endlessly
-	if response.MessageId != id || response.Type != "STORE_RESPONSE" {
-		if response.MessageId == id && response.Type == "STORE_ERROR" {
-			return errors.New("store rejected by receiver")
+	select {
+	case response := <-respChannel:
+		if response.MessageId != id || response.Type != "STORE_RESPONSE" {
+			if response.MessageId == id && response.Type == "STORE_ERROR" {
+				return errors.New("store rejected by receiver")
+			}
+			return errors.New("invalid store response")
 		}
-		return errors.New("invalid store response")
+		return nil
+	case <-time.After(2 * time.Second):
+		return errors.New("Stored timed out")
 	}
-	return nil
 }
 
 // This is for receiving each message and send it to the right function
