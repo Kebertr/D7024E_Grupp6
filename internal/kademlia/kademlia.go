@@ -2,7 +2,7 @@ package kademlia
 
 import (
 	"errors"
-	sync "sync"
+	"sync"
 )
 
 const (
@@ -15,6 +15,7 @@ type Kademlia struct {
 	RoutingTable *RoutingTable
 	Network      *Network
 	Data         map[string][]byte
+	muData       sync.RWMutex
 }
 
 func (kademlia *Kademlia) Ping(contact *Contact) error {
@@ -91,9 +92,11 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 		return nil, kademlia.Contact, errors.New("invalid data hash")
 	}
 
-	if value, ok := kademlia.Data[targetID.String()]; ok {
-		//Return a copy so orginial wont risk it being mutated
-		return append([]byte(nil), value...), kademlia.Contact, nil
+	kademlia.muData.RLock()
+	value, ok := kademlia.Data[targetID.String()]
+	kademlia.muData.RUnlock()
+	if ok {
+		return value, kademlia.Contact, nil
 	}
 
 	candidates := &ContactCandidates{}
@@ -141,10 +144,12 @@ func (kademlia *Kademlia) Store(data []byte) error {
 	var storeErr error
 	for _, contact := range candidates.GetContacts(candidates.Len()) {
 		if contact.ID.Equals(kademlia.Contact.ID) {
+			kademlia.muData.Lock()
 			if kademlia.Data == nil {
 				kademlia.Data = make(map[string][]byte)
 			}
-			kademlia.Data[targetID.String()] = append([]byte(nil), data...)
+			kademlia.Data[targetID.String()] = data
+			kademlia.muData.Unlock()
 			continue
 		}
 		if err := kademlia.Network.SendStoreMessage(&contact, targetID, data); err != nil {
@@ -318,27 +323,37 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 		return kademlia.handleStore(msg)
 
 	case "PING_RETURN":
+		kademlia.Network.recmu.Lock()
 		respChannel := kademlia.Network.receive[msg.MessageId]
+		kademlia.Network.recmu.Unlock()
 		respChannel <- msg
 		return nil
 
 	case "FIND_NODE_RESPONSE":
+		kademlia.Network.recmu.Lock()
 		respChannel := kademlia.Network.receive[msg.MessageId]
+		kademlia.Network.recmu.Unlock()
 		respChannel <- msg
 		return nil
 
 	case "FIND_VALUE_RESPONSE":
+		kademlia.Network.recmu.Lock()
 		respChannel := kademlia.Network.receive[msg.MessageId]
+		kademlia.Network.recmu.Unlock()
 		respChannel <- msg
 		return nil
 
 	case "STORE_RESPONSE":
+		kademlia.Network.recmu.Lock()
 		respChannel := kademlia.Network.receive[msg.MessageId]
+		kademlia.Network.recmu.Unlock()
 		respChannel <- msg
 		return nil
 
 	case "STORE_ERROR":
+		kademlia.Network.recmu.Lock()
 		respChannel := kademlia.Network.receive[msg.MessageId]
+		kademlia.Network.recmu.Unlock()
 		respChannel <- msg
 		return nil
 	}
@@ -350,13 +365,16 @@ func (kademlia *Kademlia) FindReceiverData(msg Message) error {
 		return errors.New("find value message has no target")
 	}
 
-	if value, ok := kademlia.Data[msg.Target.String()]; ok {
+	kademlia.muData.Lock()
+	value, ok := kademlia.Data[msg.Target.String()]
+	kademlia.muData.Unlock()
+	if ok {
 		message := Message{
 			MessageId: msg.MessageId,
 			From:      kademlia.Contact,
 			To:        msg.From.Address,
 			Type:      "FIND_VALUE_RESPONSE",
-			Value:     append([]byte(nil), value...),
+			Value:     value,
 			Found:     true,
 		}
 		return kademlia.Network.listener.Send(message)
@@ -433,11 +451,13 @@ func (kademlia *Kademlia) handleStore(msg Message) error {
 			Type:      "STORE_ERROR",
 		})
 	}
+	kademlia.muData.Lock()
 	if kademlia.Data == nil {
 		kademlia.Data = make(map[string][]byte)
 	}
 
-	kademlia.Data[msg.Target.String()] = append([]byte(nil), msg.Value...)
+	kademlia.Data[msg.Target.String()] = msg.Value
+	kademlia.muData.Unlock()
 
 	message := Message{
 		MessageId: msg.MessageId,
