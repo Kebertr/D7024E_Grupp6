@@ -10,6 +10,12 @@ services:
   bootstrap:
     build: .
     image: kadlab:latest # Make sure your Docker image has this name.
+    develop:
+      watch:
+        - action: rebuild
+          path: .
+          ignore:
+            - .git/
     stdin_open: true
     tty: true
     networks:
@@ -17,6 +23,12 @@ services:
   kademliaNodes:
     build: .
     image: kadlab:latest # Make sure your Docker image has this name.
+    develop:
+      watch:
+        - action: rebuild
+          path: .
+          ignore:
+            - .git/
     stdin_open: true
     tty: true
     depends_on:
