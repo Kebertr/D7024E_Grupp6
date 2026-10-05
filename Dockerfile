@@ -11,7 +11,7 @@ RUN go build -o /kademlia ./cmd
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "IP=$(hostname -i); echo \"Node address: ${IP}\"; echo \"port:8080\"; /kademlia start --ip \"$IP\" --port 8080 --bootstrap bootstrap:8080"]
+CMD ["sh", "-c", "IP=$(hostname -i); echo \"Node address: ${IP}\"; echo \"port:8080\"; /kademlia start --ip \"$IP\" --port 8080"]
 
 
 # Add the commands needed to put your compiled go binary in the container and
