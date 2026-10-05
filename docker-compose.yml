@@ -5,7 +5,7 @@
 # command line flags, in order to actually get any replicas started. That
 # command requires that a docker swarm is already running in order to function.
 
-version: "3"
+
 services:
   bootstrap:
     build: .

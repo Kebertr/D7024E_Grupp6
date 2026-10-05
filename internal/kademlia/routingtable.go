@@ -69,6 +69,28 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 	return IDLength*8 - 1
 }
 
+// yoink returns a snapshot of all routing-table buckets.
+func (routingTable *RoutingTable) YoinkContacts() [][]Contact {
+	buckets := make([][]Contact, len(routingTable.buckets))
+
+	for index, bucket := range routingTable.buckets {
+		element := bucket.List.Front()
+
+		for element != nil {
+			contact := element.Value.(Contact)
+			buckets[index] = append(buckets[index], contact)
+
+			element = element.Next()
+		}
+	}
+
+	return buckets
+}
+
+/*
+
+// Might need to remove fully later testing for now
+
 // So cli can access buckets
 func (routingTable *RoutingTable) GetAllContacts() []Contact {
 	var contacts []Contact
@@ -81,3 +103,5 @@ func (routingTable *RoutingTable) GetAllContacts() []Contact {
 
 	return contacts
 }
+
+*/
