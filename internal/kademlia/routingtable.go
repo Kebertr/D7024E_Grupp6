@@ -1,5 +1,7 @@
 package kademlia
 
+import "sync"
+
 const bucketSize = 20
 const BucketSize = bucketSize
 
@@ -8,6 +10,7 @@ const BucketSize = bucketSize
 type RoutingTable struct {
 	me      Contact
 	buckets [IDLength * 8]*Bucket
+	muRoute sync.RWMutex
 }
 
 // NewRoutingTable returns a new instance of a RoutingTable
@@ -22,6 +25,8 @@ func NewRoutingTable(me Contact) *RoutingTable {
 
 // AddContact add a new contact to the correct Bucket
 func (routingTable *RoutingTable) AddContact(contact Contact) {
+	routingTable.muRoute.Lock()
+	defer routingTable.muRoute.Unlock()
 	bucketIndex := routingTable.getBucketIndex(contact.ID)
 	bucket := routingTable.buckets[bucketIndex]
 	bucket.AddContact(contact)
@@ -29,6 +34,8 @@ func (routingTable *RoutingTable) AddContact(contact Contact) {
 
 // FindClosestContacts finds the count closest Contacts to the target in the RoutingTable
 func (routingTable *RoutingTable) FindClosestContacts(target *KademliaID, count int) []Contact {
+	routingTable.muRoute.RLock()
+	defer routingTable.muRoute.RUnlock()
 	var candidates ContactCandidates
 	bucketIndex := routingTable.getBucketIndex(target)
 	bucket := routingTable.buckets[bucketIndex]
@@ -71,6 +78,8 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 
 // So cli can access buckets
 func (routingTable *RoutingTable) GetAllContacts() []Contact {
+	routingTable.muRoute.RLock()
+	defer routingTable.muRoute.RUnlock()
 	var contacts []Contact
 
 	for _, bucket := range routingTable.buckets {
