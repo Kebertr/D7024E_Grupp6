@@ -65,7 +65,6 @@ func init() {
 	var startIp string
 	var startPort int
 	var startId string
-	var bootstrapNode string
 
 	/*
 		Creates and runs a local kademlia node
@@ -89,18 +88,10 @@ func init() {
 				node = nil
 			}()
 
-			if bootstrapNode != "" {
-				boostrap := kademlia.NewContact(nil, bootstrapNode)
+			bootAddress := os.Getenv("BOOT_ADDRESS")
 
-				err = node.Ping(&boostrap)
-
-				if err != nil {
-					fmt.Println(err)
-				} else {
-					fmt.Println("Connected to the bootstrap node")
-				}
-
-			}
+			bootNode := kademlia.NewContact(nil, bootAddress)
+			node.Ping(&bootNode)
 
 			runShell()
 		},
@@ -108,7 +99,6 @@ func init() {
 	startCmd.Flags().StringVarP(&startIp, "ip", "i", "127.0.0.1", "IP address of this node")
 	startCmd.Flags().IntVarP(&startPort, "port", "p", 0, "Port number of this node")
 	startCmd.Flags().StringVar(&startId, "id", kademlia.NewRandomKademliaID().String(), "Kademlia ID of this node")
-	startCmd.Flags().StringVar(&bootstrapNode, "bootstrap", "", "Bootstrap node address")
 	rootCmd.AddCommand(startCmd)
 }
 
@@ -138,6 +128,8 @@ func runShell() {
 		case "ping":
 			shellPing(fields[1:])
 		case "put":
+			contacts := node.RoutingTable.GetAllContacts()
+			println(len(contacts))
 			shellput(fields[0:])
 		case "get":
 			shellGet(fields[0:])
@@ -184,7 +176,7 @@ func shellPing(args []string) {
 		fmt.Printf("Ping failed after %v: %v\n", duration, err)
 		return
 	}
-	fmt.Printf("Pinging from %s in %v\n", contact.Address, duration)
+	fmt.Printf("Pinging to %s in %v\n", contact.Address, duration)
 }
 
 func shellput(args []string) {

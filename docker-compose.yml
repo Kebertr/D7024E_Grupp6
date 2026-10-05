@@ -49,6 +49,8 @@ services:
 #      - "4000:80"
     networks:
       - kademlia_network
+    environment:
+      BOOT_ADDRESS: bootstrap:8080
       
 networks:
   kademlia_network:
