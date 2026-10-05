@@ -45,8 +45,9 @@ func (c *realConnection) Send(msg Message) error {
 			Id:      msg.From.ID[:],
 			Address: msg.From.Address,
 		},
-		To:   msg.To,
-		Type: msg.Type,
+		To:        msg.To,
+		Type:      msg.Type,
+		StoreMode: msg.StoreMode,
 	}
 	//Adds found flag only to store messeges. Other remains the same
 	if msg.Type == "FIND_VALUE_RESPONSE" {
@@ -106,9 +107,10 @@ func (c *realConnection) Recv() (Message, error) {
 			ID:      (*KademliaID)(msgProto.From.Id),
 			Address: msgProto.From.Address,
 		},
-		To:    msgProto.To,
-		Type:  msgProto.GetType(),
-		Value: msgProto.GetValue(),
+		To:        msgProto.To,
+		Type:      msgProto.GetType(),
+		Value:     msgProto.GetValue(),
+		StoreMode: msgProto.GetStoreMode(),
 	}
 	//Extract found flag only if it's from a store message
 	if message.Type == "FIND_VALUE_RESPONSE" && len(message.Value) > 0 {

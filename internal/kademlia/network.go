@@ -37,6 +37,7 @@ type Message struct {
 	Contacts  []Contact
 	Value     []byte
 	Found     bool
+	StoreMode StoreMode
 }
 
 func (network *Network) SendPingMessage(contact *Contact) (Contact, error) {
@@ -153,6 +154,14 @@ func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID
 }
 
 func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, data []byte) error {
+	return network.sendStoreMessage(contact, target, data, StoreMode_IMMUTABLE)
+}
+
+func (network *Network) SendLatestPointerMessage(contact *Contact, target *KademliaID, data []byte) error {
+	return network.sendStoreMessage(contact, target, data, StoreMode_MUTABLE_LATEST)
+}
+
+func (network *Network) sendStoreMessage(contact *Contact, target *KademliaID, data []byte, storeMode StoreMode) error {
 	if contact == nil {
 		return errors.New("contact is required")
 	}
@@ -171,6 +180,7 @@ func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, d
 		Type:      "STORE",
 		Target:    target,
 		Value:     data,
+		StoreMode: storeMode,
 	}
 
 	err := network.listener.Send(msg)

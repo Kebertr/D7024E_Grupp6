@@ -8,6 +8,11 @@ message ContactProto {
     bytes id = 1;
     string address = 2;
 }
+enum StoreMode {
+    IMMUTABLE = 0;
+    MUTABLE_LATEST = 1;
+}
+
 message MessageProto {
 	bytes MessageId             	 = 1;
 	ContactProto From                = 2;
@@ -15,5 +20,30 @@ message MessageProto {
 	string Type                 	 = 4;
 	bytes Target                	 = 5;    
 	repeated ContactProto Contacts   = 6;
-	bytes Value                 	 = 7;     
+	bytes Value                 	 = 7;
+	StoreMode store_mode 			 = 8;
+     
+}
+message VersionRecord {
+    string domain = 1;
+    string package = 2;
+    string version = 3;
+    bytes blob_hash = 4;
+    bytes previous_record_hash = 5;
+    bytes signature = 6;
+}
+
+message LatestPointer {
+    string domain = 1;
+    string package = 2;
+    string version = 3;
+    bytes version_record_hash = 4;
+    bytes signature = 5;
+}
+
+message RegistryRecord {
+    oneof record {
+        VersionRecord version_record = 1;
+        LatestPointer latest_pointer = 2;
+    }
 }
