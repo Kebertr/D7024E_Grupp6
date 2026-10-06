@@ -76,17 +76,20 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 	return IDLength*8 - 1
 }
 
-// So cli can access buckets
-func (routingTable *RoutingTable) GetAllContacts() []Contact {
-	routingTable.muRoute.RLock()
-	defer routingTable.muRoute.RUnlock()
-	var contacts []Contact
+// yoink returns a snapshot of all routing-table buckets.
+func (routingTable *RoutingTable) YoinkContacts() [][]Contact {
+	buckets := make([][]Contact, len(routingTable.buckets))
 
-	for _, bucket := range routingTable.buckets {
-		for element := bucket.List.Front(); element != nil; element = element.Next() {
-			contacts = append(contacts, element.Value.(Contact))
+	for index, bucket := range routingTable.buckets {
+		element := bucket.List.Front()
+
+		for element != nil {
+			contact := element.Value.(Contact)
+			buckets[index] = append(buckets[index], contact)
+
+			element = element.Next()
 		}
 	}
 
-	return contacts
+	return buckets
 }

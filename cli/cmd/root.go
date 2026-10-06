@@ -124,19 +124,32 @@ func runShell() {
 		case "exit", "quit", "q":
 			return
 		case "help":
-			fmt.Println("ping <ip> <port> | put <value> | get <key> <filename>| exit")
+			fmt.Println("ping <ip> <port> | put <value> | get <key> <filename>| exit | detach")
 		case "ping":
 			shellPing(fields[1:])
 		case "put":
-			contacts := node.RoutingTable.GetAllContacts()
+			contacts := node.RoutingTable.YoinkContacts()
 			println(len(contacts))
 			shellput(fields[0:])
 		case "get":
 			shellGet(fields[0:])
-		case "show rt":
-			//TODO
-		case "show dt":
-			//TODO
+		case "show":
+			if len(fields) != 2 {
+				fmt.Println("Usage: show rt|ds")
+				continue
+			}
+
+			switch fields[1] {
+			case "rt":
+				shellShowRoutingTable()
+			case "ds":
+				shellShowDataStore()
+			default:
+				fmt.Println("Usage: show rt|ds")
+			}
+		case "detach":
+			fmt.Println("Use Ctrl-P, Ctrl-Q to detach.")
+			return
 		default:
 			fmt.Println("Unknown command. Type 'help' for available commands.")
 		}
@@ -212,5 +225,55 @@ func shellGet(args []string) {
 		}
 		fmt.Println("Added it to file ", filename)
 		fmt.Println("The node that sent it:", sender.Address)
+	}
+}
+
+func shellShowRoutingTable() {
+	if node == nil {
+		fmt.Println("Start a node before showing the routing table")
+		return
+	}
+
+	fmt.Printf("Routing table for %s (%s)\n", node.Contact.Address, node.Contact.ID)
+
+	buckets := node.RoutingTable.YoinkContacts()
+	total := 0
+
+	for bucketIndex, contacts := range buckets {
+		if len(contacts) == 0 {
+			continue
+		}
+
+		fmt.Printf("\nBucket %d (%d/%d contacts)\n",
+			bucketIndex, len(contacts), kademlia.BucketSize)
+
+		for contactIndex, contact := range contacts {
+			fmt.Printf("  %d. %s @ %s\n",
+				contactIndex+1, contact.ID, contact.Address)
+			total++
+		}
+	}
+
+	if total == 0 {
+		fmt.Println("\nRouting table is empty")
+	} else {
+		fmt.Printf("\nTotal contacts: %d\n", total)
+	}
+}
+
+func shellShowDataStore() {
+	if node == nil {
+		fmt.Println("Start a node before showing the data store")
+		return
+	}
+
+	if len(node.Data) == 0 {
+		fmt.Println("Data store is empty")
+		return
+	}
+
+	fmt.Println("Stored keys:")
+	for key := range node.Data {
+		fmt.Println(key)
 	}
 }
