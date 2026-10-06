@@ -8,6 +8,8 @@ import (
 const (
 	alpha         = 3 // Number of parallel queries
 	shortListSize = bucketSize
+	// MaxValueSize is the maximum supported value size in bytes.
+	MaxValueSize = 4 * 1024
 )
 
 type Kademlia struct {
@@ -82,7 +84,10 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 }
 
 func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
-	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
+	if kademlia == nil {
+		return nil, Contact{}, errors.New("invalid lookup arguments")
+	}
+	if kademlia.RoutingTable == nil || kademlia.Network == nil {
 		return nil, kademlia.Contact, errors.New("invalid lookup arguments")
 	}
 
@@ -91,12 +96,20 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 		return nil, kademlia.Contact, errors.New("invalid data hash")
 	}
 
+	//Checking local node for value
 	if value, ok := kademlia.Data[targetID.String()]; ok {
+		if len(value) > MaxValueSize {
+			return nil, kademlia.Contact, errors.New("value exceeds 4 KiB limit")
+		}
+		if !targetID.Equals(NewValueID(value)) {
+			return nil, kademlia.Contact, errors.New("stored value does not match requested key")
+		}
 		//Return a copy so orginial wont risk it being mutated
 		return append([]byte(nil), value...), kademlia.Contact, nil
 	}
 
 	candidates := &ContactCandidates{}
+	// Start with the closest nodes currently known in the routing table.
 	candidates.Append(kademlia.RoutingTable.FindClosestContacts(targetID, shortListSize))
 	queried := make(map[string]bool)
 
@@ -105,15 +118,22 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 		if len(batch) == 0 {
 			return nil, kademlia.Contact, errors.New("data not found")
 		}
-
+		// Query this batch concurrently for the value or closer nodes.
 		results, err := QueryDataBatch(kademlia.Network, batch, targetID)
 		if err != nil {
 			return nil, kademlia.Contact, err
 		}
 		for i, result := range results {
 			if result.found {
+				if len(result.value) > MaxValueSize {
+					return nil, kademlia.Contact, errors.New("value exceeds 4 KiB limit")
+				}
+				if !targetID.Equals(NewValueID(result.value)) {
+					return nil, kademlia.Contact, errors.New("stored value does not match requested key")
+				}
 				return result.value, batch[i], nil
 			}
+			// Add closer contacts from misses so later rounds can query them.
 			for _, contact := range result.contacts {
 				MergeClosest(candidates, contact, targetID, shortListSize)
 			}
@@ -125,9 +145,13 @@ func (kademlia *Kademlia) Store(data []byte) error {
 	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
 		return errors.New("invalid store arguments")
 	}
+	if len(data) > MaxValueSize {
+		return errors.New("value exceeds 4 KiB limit")
+	}
 
 	targetID := NewValueID(data)
 	target := Contact{ID: targetID}
+	// Find the nodes closest to the ID derived from this value.
 	contacts, err := kademlia.LookupContact(&target)
 	if err != nil {
 		return err
@@ -140,6 +164,7 @@ func (kademlia *Kademlia) Store(data []byte) error {
 
 	var storeErr error
 	for _, contact := range candidates.GetContacts(candidates.Len()) {
+		// Store directly if this candidate is the local node.
 		if contact.ID.Equals(kademlia.Contact.ID) {
 			if kademlia.Data == nil {
 				kademlia.Data = make(map[string][]byte)
@@ -147,6 +172,7 @@ func (kademlia *Kademlia) Store(data []byte) error {
 			kademlia.Data[targetID.String()] = append([]byte(nil), data...)
 			continue
 		}
+		// Otherwise, ask the remote candidate to store the value.
 		if err := kademlia.Network.SendStoreMessage(&contact, targetID, data); err != nil {
 			storeErr = err
 		}
@@ -416,16 +442,7 @@ func (kademlia *Kademlia) Close() error {
 }
 
 func (kademlia *Kademlia) handleStore(msg Message) error {
-	if msg.Target == nil {
-		return kademlia.Network.listener.Send(Message{
-			MessageId: msg.MessageId,
-			From:      kademlia.Contact,
-			To:        msg.From.Address,
-			Type:      "STORE_ERROR",
-		})
-	}
-	// reject mappings where the key isn't the hash of the value (K = hash(V))
-	if !msg.Target.Equals(NewValueID(msg.Value)) {
+	if len(msg.Value) > MaxValueSize || msg.Target == nil || !msg.Target.Equals(NewValueID(msg.Value)) {
 		return kademlia.Network.listener.Send(Message{
 			MessageId: msg.MessageId,
 			From:      kademlia.Contact,

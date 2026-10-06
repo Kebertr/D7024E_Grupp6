@@ -5,6 +5,17 @@ import (
 	"testing"
 )
 
+type failingStoreConnection struct {
+	Connection
+}
+
+func (connection failingStoreConnection) Send(message Message) error {
+	if message.Type == "STORE" {
+		return fmt.Errorf("forced STORE send failure")
+	}
+	return connection.Connection.Send(message)
+}
+
 func TestPing(t *testing.T) {
 	mock := NewMockNetwork()
 
@@ -106,6 +117,184 @@ func TestStoreStoresDataLocally(t *testing.T) {
 	}
 }
 
+func TestStoreValueSizeLimit(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		size    int
+		wantErr bool
+	}{
+		{name: "maximum accepted", size: MaxValueSize},
+		{name: "over maximum rejected", size: MaxValueSize + 1, wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			mock := NewMockNetwork()
+			node := NewContact(
+				NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+				"node1",
+			)
+			network, err := initNetwork(mock, node)
+			if err != nil {
+				t.Fatal(err)
+			}
+			kademlia := &Kademlia{
+				Contact:      node,
+				RoutingTable: NewRoutingTable(node),
+				Network:      network,
+			}
+
+			data := make([]byte, test.size)
+			err = kademlia.Store(data)
+			if test.wantErr {
+				if err == nil {
+					t.Fatal("expected oversized value to be rejected")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Store rejected maximum-sized value: %v", err)
+			}
+			if got := len(kademlia.Data[NewValueID(data).String()]); got != test.size {
+				t.Fatalf("expected %d stored bytes, got %d", test.size, got)
+			}
+		})
+	}
+}
+
+func TestLookupDataRejectsOversizedLocalValue(t *testing.T) {
+	mock := NewMockNetwork()
+	node := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+		"node1",
+	)
+	network, err := initNetwork(mock, node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := make([]byte, MaxValueSize+1)
+	targetID := NewValueID(data)
+	kademlia := &Kademlia{
+		Contact:      node,
+		RoutingTable: NewRoutingTable(node),
+		Network:      network,
+		Data:         map[string][]byte{targetID.String(): data},
+	}
+
+	if _, _, err := kademlia.LookupData(targetID.String()); err == nil {
+		t.Fatal("expected LookupData to reject oversized cached value")
+	}
+}
+
+func TestLookupDataInvalidArguments(t *testing.T) {
+	var nilNode *Kademlia
+	if _, _, err := nilNode.LookupData("00"); err == nil {
+		t.Fatal("expected nil receiver to return an error")
+	}
+
+	for _, node := range []*Kademlia{{}, {RoutingTable: NewRoutingTable(Contact{})}} {
+		if _, _, err := node.LookupData("00"); err == nil {
+			t.Fatal("expected missing network or routing table to return an error")
+		}
+	}
+}
+
+func TestLookupDataReturnsCachedValueAndChecksItsHash(t *testing.T) {
+	mock := NewMockNetwork()
+	node := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+		"node1",
+	)
+	network, err := initNetwork(mock, node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := []byte("cached")
+	targetID := NewValueID(data)
+	kademlia := &Kademlia{
+		Contact:      node,
+		RoutingTable: NewRoutingTable(node),
+		Network:      network,
+		Data:         map[string][]byte{targetID.String(): data},
+	}
+
+	value, sender, err := kademlia.LookupData(targetID.String())
+	if err != nil || string(value) != string(data) || !sender.ID.Equals(node.ID) {
+		t.Fatalf("expected local cached value and sender, got value=%q sender=%v err=%v", value, sender, err)
+	}
+
+	kademlia.Data[targetID.String()] = []byte("different value")
+	if _, _, err := kademlia.LookupData(targetID.String()); err == nil {
+		t.Fatal("expected cached value with a mismatched hash to be rejected")
+	}
+}
+
+func TestLookupDataReturnsNotFoundWithoutCandidates(t *testing.T) {
+	mock := NewMockNetwork()
+	node := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+		"node1",
+	)
+	network, err := initNetwork(mock, node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kademlia := &Kademlia{Contact: node, RoutingTable: NewRoutingTable(node), Network: network}
+
+	if _, _, err := kademlia.LookupData(NewValueID([]byte("missing")).String()); err == nil {
+		t.Fatal("expected data-not-found error when there are no candidates")
+	}
+}
+
+func TestLookupDataReturnsQueryError(t *testing.T) {
+	mock := NewMockNetwork()
+	node := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+		"node1",
+	)
+	network, err := initNetwork(mock, node)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kademlia := &Kademlia{Contact: node, RoutingTable: NewRoutingTable(node), Network: network}
+	kademlia.RoutingTable.AddContact(NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"),
+		"unreachable",
+	))
+
+	if _, _, err := kademlia.LookupData(NewValueID([]byte("missing")).String()); err == nil {
+		t.Fatal("expected LookupData to return the network query error")
+	}
+}
+
+func TestLookupDataRejectsRemoteValueWithMismatchedHash(t *testing.T) {
+	mock := NewMockNetwork()
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
+	node2 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2")
+	network1, err := initNetwork(mock, node1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	network2, err := initNetwork(mock, node2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestedValue := []byte("requested")
+	targetID := NewValueID(requestedValue)
+	kademlia1 := &Kademlia{Contact: node1, RoutingTable: NewRoutingTable(node1), Network: network1}
+	kademlia1.RoutingTable.AddContact(node2)
+	kademlia2 := &Kademlia{
+		Contact:      node2,
+		RoutingTable: NewRoutingTable(node2),
+		Network:      network2,
+		Data:         map[string][]byte{targetID.String(): []byte("wrong value")},
+	}
+	network1.ServerListen(kademlia1)
+	network2.ServerListen(kademlia2)
+
+	if _, _, err := kademlia1.LookupData(targetID.String()); err == nil {
+		t.Fatal("expected remote value with a mismatched hash to be rejected")
+	}
+}
+
 func TestLookupDataFindsRemoteValue(t *testing.T) {
 	mock := NewMockNetwork()
 	node1 := NewContact(
@@ -153,6 +342,64 @@ func TestLookupDataFindsRemoteValue(t *testing.T) {
 	}
 	if string(result) != string(data) {
 		t.Fatalf("expected value %q, got %q", data, result)
+	}
+}
+
+func TestLookupDataFollowsCloserContacts(t *testing.T) {
+	mock := NewMockNetwork()
+	contacts := []Contact{
+		NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1"),
+		NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2"),
+		NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000003"), "node3"),
+	}
+	nodes := make([]*Kademlia, len(contacts))
+	for index, contact := range contacts {
+		network, err := initNetwork(mock, contact)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nodes[index] = &Kademlia{Contact: contact, RoutingTable: NewRoutingTable(contact), Network: network}
+	}
+	data := []byte("found after referral")
+	targetID := NewValueID(data)
+	nodes[0].RoutingTable.AddContact(contacts[1])
+	nodes[1].RoutingTable.AddContact(contacts[2])
+	nodes[2].Data = map[string][]byte{targetID.String(): data}
+	for _, node := range nodes {
+		node.Network.ServerListen(node)
+	}
+
+	value, sender, err := nodes[0].LookupData(targetID.String())
+	if err != nil {
+		t.Fatalf("LookupData failed after referral: %v", err)
+	}
+	if string(value) != string(data) || !sender.ID.Equals(contacts[2].ID) {
+		t.Fatalf("expected value from node3, got value=%q sender=%v", value, sender)
+	}
+}
+
+func TestStoreReturnsRemoteStoreError(t *testing.T) {
+	mock := NewMockNetwork()
+	data := []byte("value")
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
+	node2 := NewContact(NewValueID(data), "node2")
+	network1, err := initNetwork(mock, node1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	network2, err := initNetwork(mock, node2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	network1.listener = failingStoreConnection{Connection: network1.listener}
+	kademlia1 := &Kademlia{Contact: node1, RoutingTable: NewRoutingTable(node1), Network: network1}
+	kademlia2 := &Kademlia{Contact: node2, RoutingTable: NewRoutingTable(node2), Network: network2}
+	kademlia1.RoutingTable.AddContact(node2)
+	network1.ServerListen(kademlia1)
+	network2.ServerListen(kademlia2)
+
+	if err := kademlia1.Store(data); err == nil {
+		t.Fatal("expected Store to report the remote STORE error")
 	}
 }
 

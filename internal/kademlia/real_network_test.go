@@ -2,6 +2,56 @@ package kademlia
 
 import "testing"
 
+func TestStoreMessageRealNetworkAcceptsMaximumValue(t *testing.T) {
+	transport := NewRealNetwork()
+	sender := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+		"127.0.0.1:0",
+	)
+	receiver := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"),
+		"127.0.0.1:0",
+	)
+
+	senderNetwork, err := initNetwork(transport, sender)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = senderNetwork.listener.Close() })
+	receiverNetwork, err := initNetwork(transport, receiver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = receiverNetwork.listener.Close() })
+
+	sender.Address = senderNetwork.listener.(*realConnection).conn.LocalAddr().String()
+	receiver.Address = receiverNetwork.listener.(*realConnection).conn.LocalAddr().String()
+	senderNetwork.contact = sender
+	receiverNetwork.contact = receiver
+
+	senderNode := &Kademlia{
+		Contact:      sender,
+		RoutingTable: NewRoutingTable(sender),
+		Network:      senderNetwork,
+	}
+	senderNetwork.ServerListen(senderNode)
+
+	receiverNode := &Kademlia{
+		Contact:      receiver,
+		RoutingTable: NewRoutingTable(receiver),
+		Network:      receiverNetwork,
+	}
+	receiverNetwork.ServerListen(receiverNode)
+
+	data := make([]byte, MaxValueSize)
+	if err := senderNetwork.SendStoreMessage(&receiver, NewValueID(data), data); err != nil {
+		t.Fatalf("maximum-sized STORE over UDP failed: %v", err)
+	}
+	if got := len(receiverNode.Data[NewValueID(data).String()]); got != MaxValueSize {
+		t.Fatalf("expected %d stored bytes, got %d", MaxValueSize, got)
+	}
+}
+
 func TestFindValueRealNetworkPreservesEmptyValue(t *testing.T) {
 	real := NewRealNetwork()
 	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "127.0.0.1:0")

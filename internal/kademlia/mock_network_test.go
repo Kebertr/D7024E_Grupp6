@@ -248,3 +248,61 @@ func TestSendStoreMessageRejectsMismatchedTarget(t *testing.T) {
 	kademlia1.Network.listener.Close()
 	kademlia2.Network.listener.Close()
 }
+
+func TestSendStoreMessageRejectsOversizedValue(t *testing.T) {
+	contact := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"),
+		"node2",
+	)
+	data := make([]byte, MaxValueSize+1)
+
+	err := (&Network{}).SendStoreMessage(&contact, NewValueID(data), data)
+	if err == nil {
+		t.Fatal("expected oversized value to be rejected before sending")
+	}
+}
+
+func TestHandleStoreRejectsOversizedValue(t *testing.T) {
+	mock := NewMockNetwork()
+	sender := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
+		"sender",
+	)
+	receiver := NewContact(
+		NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"),
+		"receiver",
+	)
+	senderNetwork, err := initNetwork(mock, sender)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiverNetwork, err := initNetwork(mock, receiver)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := make([]byte, MaxValueSize+1)
+	kademlia := &Kademlia{
+		Contact:      receiver,
+		RoutingTable: NewRoutingTable(receiver),
+		Network:      receiverNetwork,
+	}
+
+	if err := kademlia.handleStore(Message{
+		MessageId: createMessageId(),
+		From:      sender,
+		Target:    NewValueID(data),
+		Value:     data,
+	}); err != nil {
+		t.Fatalf("handleStore failed to reject oversized value: %v", err)
+	}
+	response, err := senderNetwork.listener.Recv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Type != "STORE_ERROR" {
+		t.Fatalf("expected STORE_ERROR, got %q", response.Type)
+	}
+	if len(kademlia.Data) != 0 {
+		t.Fatal("receiver stored the oversized value")
+	}
+}

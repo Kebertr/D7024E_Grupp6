@@ -32,7 +32,7 @@ func NewRandomKademliaID() *KademliaID {
 	return &newKademliaID
 }
 
-// Takes <key,value> pair and makes 256 bit KadmeliaID
+// Takes value and makes 256 bit KadmeliaID
 func NewValueID(data []byte) *KademliaID {
 	hash := sha256.Sum256(data)
 	targetID := KademliaID(hash)

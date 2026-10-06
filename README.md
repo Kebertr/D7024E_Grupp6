@@ -13,3 +13,7 @@ To run all test simply open your terminal and run: ``./test.sh `` from project r
 # Coverage report
 
 To get a Coverage report of all the tests run: ``./coveragereport.sh `` from project root directory
+
+# Value size limit
+
+Stored values may be at most 4 KiB (4096 bytes). Larger values are rejected by the local API and by receiving nodes.

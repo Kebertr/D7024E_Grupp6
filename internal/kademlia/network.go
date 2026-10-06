@@ -142,6 +142,9 @@ func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID
 		return nil, nil, false, errors.New("invalid find data response")
 	}
 	if response.Found {
+		if len(response.Value) > MaxValueSize {
+			return nil, nil, false, errors.New("value exceeds 4 KiB limit")
+		}
 		return append([]byte(nil), response.Value...), nil, true, nil
 	}
 	return nil, response.Contacts, false, nil
@@ -150,6 +153,9 @@ func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID
 func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, data []byte) error {
 	if contact == nil {
 		return errors.New("contact is required")
+	}
+	if len(data) > MaxValueSize {
+		return errors.New("value exceeds 4 KiB limit")
 	}
 
 	id := createMessageId()

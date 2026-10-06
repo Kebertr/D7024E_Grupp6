@@ -33,6 +33,9 @@ type realConnection struct {
 	conn *net.UDPConn
 }
 
+// 65507 bytes is the maximum IPv4 UDP payload, excluding IP and UDP headers.
+//const maxUDPDatagramSize = 65507
+
 func (c *realConnection) Send(msg Message) error {
 	udpaddr, err := net.ResolveUDPAddr("udp", msg.To)
 	if err != nil {
