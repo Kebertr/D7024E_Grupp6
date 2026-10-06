@@ -8,6 +8,7 @@ import (
 const (
 	alpha         = 3 // Number of parallel queries
 	shortListSize = bucketSize
+	limitData     = 4096
 )
 
 type Kademlia struct {
@@ -129,6 +130,10 @@ func (kademlia *Kademlia) Store(data []byte) error {
 		return errors.New("invalid store arguments")
 	}
 
+	if len(data) > limitData {
+		return errors.New("data exceeds maximum size limit")
+	}
+
 	targetID := NewValueID(data)
 	target := Contact{ID: targetID}
 	contacts, err := kademlia.LookupContact(&target)
@@ -145,6 +150,7 @@ func (kademlia *Kademlia) Store(data []byte) error {
 	for _, contact := range candidates.GetContacts(candidates.Len()) {
 		if contact.ID.Equals(kademlia.Contact.ID) {
 			kademlia.muData.Lock()
+
 			if kademlia.Data == nil {
 				kademlia.Data = make(map[string][]byte)
 			}
