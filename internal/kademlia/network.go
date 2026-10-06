@@ -74,6 +74,8 @@ func (network *Network) SendPingMessage(contact *Contact) (Contact, error) {
 	}
 }
 
+var ErrRPCTimeout = errors.New("RPC timeout")
+
 func (network *Network) SendFindContactMessage(contact *Contact, targetId *KademliaID) ([]Contact, error) {
 
 	id := createMessageId()
@@ -105,7 +107,7 @@ func (network *Network) SendFindContactMessage(contact *Contact, targetId *Kadem
 		}
 		return response.Contacts, nil
 	case <-time.After(2 * time.Second):
-		return nil, errors.New("find contact timed out")
+		return nil, ErrRPCTimeout
 	}
 }
 

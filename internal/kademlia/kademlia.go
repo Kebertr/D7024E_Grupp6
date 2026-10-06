@@ -187,25 +187,23 @@ func NextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha
 func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Contact, error) {
 	results := make([][]Contact, len(batch))
 	errCh := make(chan error, len(batch))
-	resultCh := make(chan struct {
-		index    int
-		contacts []Contact
-	}, len(batch))
 
 	var wg sync.WaitGroup
 	wg.Add(len(batch))
 	for i, contact := range batch {
 		go func(i int, contact Contact) {
 			defer wg.Done()
+			// Query concurrently within the batch
 			contacts, err := network.SendFindContactMessage(&contact, targetID)
 			if err != nil {
+				if errors.Is(err, ErrPD) || errors.Is(err, ErrRPCTimeout) {
+					return
+
+				}
 				errCh <- err
 				return
 			}
-			resultCh <- struct {
-				index    int
-				contacts []Contact
-			}{i, contacts}
+			results[i] = contacts
 		}(i, contact)
 
 	}
@@ -214,18 +212,8 @@ func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 	case err := <-errCh:
 		return nil, err
 	default:
+		return results, nil
 	}
-
-	for i := 0; i < len(batch); i++ {
-		select {
-		case err := <-errCh:
-			return nil, err
-		case result := <-resultCh:
-			results[result.index] = result.contacts
-		}
-	}
-
-	return results, nil
 }
 
 type dataQueryResult struct {

@@ -41,6 +41,9 @@ type mockConnection struct {
 	closed  bool
 }
 
+// Need to be outside function so Query in kademlia can reach this
+var ErrPD = errors.New("Packet dropped")
+
 func (c *mockConnection) Send(msg Message) error {
 	c.network.mu.RLock()
 
@@ -51,7 +54,7 @@ func (c *mockConnection) Send(msg Message) error {
 	}
 	if rand.Float64() < c.network.packet_loss {
 		c.network.mu.RUnlock()
-		return errors.New("Packet dropped")
+		return ErrPD
 	}
 
 	time.Sleep(time.Duration(c.network.latency))
