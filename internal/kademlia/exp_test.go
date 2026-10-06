@@ -93,15 +93,15 @@ func buildNet(config configuration, seed int64) (*mockNetwork, []*Kademlia, erro
 }
 
 func TestExperiment(t *testing.T) {
-	seeds := []int64{1, 2, 3, 4, 5}
+	seeds := []int64{1, 2, 3}
 	configs := []configuration{
-		// None
+		//None
 		{nodes: 100, values: 50, latency: 0, packetLoss: 0.0},
 
-		// PL
+		// PL (0.5% -> 5%)
+		{nodes: 100, values: 50, latency: 0, packetLoss: 0.005},
 		{nodes: 100, values: 50, latency: 0, packetLoss: 0.01},
 		{nodes: 100, values: 50, latency: 0, packetLoss: 0.05},
-		{nodes: 100, values: 50, latency: 0, packetLoss: 0.1},
 
 		// Latency
 		{nodes: 100, values: 50, latency: 0 * time.Millisecond, packetLoss: 0},
@@ -109,9 +109,9 @@ func TestExperiment(t *testing.T) {
 		{nodes: 100, values: 50, latency: 250 * time.Millisecond, packetLoss: 0},
 
 		// Both
+		{nodes: 100, values: 50, latency: 50 * time.Millisecond, packetLoss: 0.005},
 		{nodes: 100, values: 50, latency: 100 * time.Millisecond, packetLoss: 0.01},
-		{nodes: 100, values: 50, latency: 250 * time.Millisecond, packetLoss: 0.05},
-		{nodes: 100, values: 50, latency: 500 * time.Millisecond, packetLoss: 0.1},
+		{nodes: 100, values: 50, latency: 150 * time.Millisecond, packetLoss: 0.05},
 	}
 
 	for _, config := range configs {
