@@ -157,6 +157,10 @@ func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, d
 		return errors.New("contact is required")
 	}
 
+	if len(data) > limitData {
+		return errors.New("data size exceeds 1024 bytes")
+	}
+
 	id := createMessageId()
 
 	respChannel := make(chan Message, 1)

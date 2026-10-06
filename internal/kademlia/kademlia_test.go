@@ -2,6 +2,7 @@ package kademlia
 
 import (
 	"fmt"
+	"os"
 	"testing"
 )
 
@@ -492,4 +493,133 @@ func TestMergeClosest(t *testing.T) {
 			t.Fatal("expected the two closest contacts to remain")
 		}
 	})
+}
+
+func TestSendStoreMessage(t *testing.T) {
+	mock := NewMockNetwork()
+
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
+	node2 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2")
+
+	network1, err := initNetwork(mock, node1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	network2, err := initNetwork(mock, node2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kademlia1 := &Kademlia{
+		Contact:      node1,
+		RoutingTable: NewRoutingTable(node1),
+		Network:      network1,
+	}
+	kademlia2 := &Kademlia{
+		Contact:      node2,
+		RoutingTable: NewRoutingTable(node2),
+		Network:      network2,
+	}
+	network1.ServerListen(kademlia1)
+	network2.ServerListen(kademlia2)
+
+	data := []byte("value")
+	target := NewValueID(data)
+
+	if err := network1.SendStoreMessage(&node2, target, data); err != nil {
+		t.Fatalf("SendStoreMessage failed: %v", err)
+	}
+
+	stored, ok := kademlia2.Data[target.String()]
+	if !ok {
+		t.Fatal("expected receiver to store the value")
+	}
+	if string(stored) != string(data) {
+		t.Fatalf("expected stored value %q, got %q", data, stored)
+	}
+
+	kademlia1.Network.listener.Close()
+	kademlia2.Network.listener.Close()
+}
+
+func TestSendStoreMessageRejectsMismatchedTarget(t *testing.T) {
+	mock := NewMockNetwork()
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
+	node2 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2")
+
+	network1, err := initNetwork(mock, node1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	network2, err := initNetwork(mock, node2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kademlia1 := &Kademlia{Contact: node1, RoutingTable: NewRoutingTable(node1), Network: network1}
+	kademlia2 := &Kademlia{Contact: node2, RoutingTable: NewRoutingTable(node2), Network: network2}
+	network1.ServerListen(kademlia1)
+	network2.ServerListen(kademlia2)
+
+	wrongTarget := NewKademliaID("0000000000000000000000000000000000000000000000000000000000000003")
+	if err := network1.SendStoreMessage(&node2, wrongTarget, []byte("value")); err == nil {
+		t.Fatal("expected the receiver to reject a target that does not hash from the value")
+	}
+
+	kademlia1.Network.listener.Close()
+	kademlia2.Network.listener.Close()
+}
+
+func TestArbitrarySize(t *testing.T) {
+	mock := NewMockNetwork()
+
+	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
+	node2 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2")
+
+	network1, err := initNetwork(mock, node1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	network2, err := initNetwork(mock, node2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kademlia1 := &Kademlia{
+		Contact:      node1,
+		RoutingTable: NewRoutingTable(node1),
+		Network:      network1,
+	}
+	kademlia2 := &Kademlia{
+		Contact:      node2,
+		RoutingTable: NewRoutingTable(node2),
+		Network:      network2,
+	}
+	network1.ServerListen(kademlia1)
+	network2.ServerListen(kademlia2)
+
+	data, err := os.ReadFile("message_invalid.txt")
+	if err != nil {
+		t.Fatalf("Failed to read message file: %v", err)
+	}
+
+	target := NewValueID(data)
+
+	sizeFail := network1.SendStoreMessage(&node2, target, data)
+	if sizeFail == nil {
+		t.Fatal("This should be invalid, since size is to large")
+	}
+
+	stored, ok := kademlia2.Data[target.String()]
+	if ok {
+		t.Fatal("This should not be stored, since size is to large")
+	}
+	if stored != nil {
+		t.Fatal("This should not be stored, since size is to large")
+	}
+
+	kademlia1.Network.listener.Close()
+	kademlia2.Network.listener.Close()
 }
