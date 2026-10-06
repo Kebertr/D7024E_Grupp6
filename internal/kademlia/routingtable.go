@@ -86,22 +86,3 @@ func (routingTable *RoutingTable) YoinkContacts() [][]Contact {
 
 	return buckets
 }
-
-/*
-
-// Might need to remove fully later testing for now
-
-// So cli can access buckets
-func (routingTable *RoutingTable) GetAllContacts() []Contact {
-	var contacts []Contact
-
-	for _, bucket := range routingTable.buckets {
-		for element := bucket.List.Front(); element != nil; element = element.Next() {
-			contacts = append(contacts, element.Value.(Contact))
-		}
-	}
-
-	return contacts
-}
-
-*/
