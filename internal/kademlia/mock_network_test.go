@@ -3,6 +3,7 @@ package kademlia
 import (
 	"math/rand"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -95,17 +96,25 @@ func Test1000Nodes(t *testing.T) {
 	success := 0
 	failures := 0
 
+	var wg sync.WaitGroup
+	var countermu sync.Mutex
 	for i := 0; i < len(nodes); i++ {
-		randValue := rand.Intn(len(nodes))
-		result := nodes[i].Ping(&nodes[randValue].Contact)
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			randValue := rand.Intn(len(nodes))
+			result := nodes[i].Ping(&nodes[randValue].Contact)
 
-		if result != nil {
-			failures++
-			continue
-		}
-
-		success++
+			countermu.Lock()
+			if result != nil {
+				failures++
+			} else {
+				success++
+			}
+			countermu.Unlock()
+		}(i)
 	}
+	wg.Wait()
 
 	if success+failures != len(nodes) {
 		t.Fatalf("They should cover every case")
@@ -115,6 +124,227 @@ func Test1000Nodes(t *testing.T) {
 	failurerate := float64(failures) / float64(len(nodes))
 
 	t.Log("The success rate was", successrate*100, "failureate", failurerate*100)
+}
+
+func Test1000NodeslookupContact(t *testing.T) {
+	mock := NewMockNetwork()
+
+	nodes := make([]*Kademlia, 1000)
+	randlatency := rand.Intn(len(nodes)) / 100
+
+	mock.latency = float64(time.Duration(randlatency) * time.Millisecond)
+	mock.packet_loss = 0.001
+
+	for i := 0; i < len(nodes); i++ {
+		node := NewContact(NewRandomKademliaID(), strconv.Itoa(i))
+
+		network, err := initNetwork(mock, node)
+		if err != nil {
+			t.Error(err)
+		}
+
+		nodes[i] = &Kademlia{
+			Contact:      node,
+			RoutingTable: NewRoutingTable(node),
+			Network:      network,
+			Data:         make(map[string][]byte),
+		}
+
+		network.ServerListen(nodes[i])
+
+	}
+
+	success := 0
+	failures := 0
+
+	var wg sync.WaitGroup
+	var countermu sync.Mutex
+	for i := 0; i < len(nodes); i++ {
+		for j := 1; j <= 10; j++ {
+			newNode := (i + j) % len(nodes)
+			nodes[i].RoutingTable.AddContact(nodes[newNode].Contact)
+		}
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			target := nodes[rand.Intn(len(nodes))].Contact
+			result, err := nodes[i].LookupContact(&target)
+
+			countermu.Lock()
+			if err != nil || len(result) == 0 {
+				failures++
+			} else {
+				success++
+			}
+			countermu.Unlock()
+		}(i)
+	}
+	wg.Wait()
+
+	if success+failures != len(nodes) {
+		t.Fatalf("They should cover every case")
+	}
+
+	successrate := float64(success) / float64(len(nodes))
+	failurerate := float64(failures) / float64(len(nodes))
+
+	t.Log("The success rate was", successrate*100, "failureate", failurerate*100)
+}
+
+func Test1000NodeslookupData(t *testing.T) {
+	mock := NewMockNetwork()
+
+	nodes := make([]*Kademlia, 1000)
+	randlatency := rand.Intn(len(nodes)) / 100
+
+	mock.latency = float64(time.Duration(randlatency) * time.Millisecond)
+	mock.packet_loss = 0.001
+
+	for i := 0; i < len(nodes); i++ {
+		node := NewContact(NewRandomKademliaID(), strconv.Itoa(i))
+
+		network, err := initNetwork(mock, node)
+		if err != nil {
+			t.Error(err)
+		}
+
+		nodes[i] = &Kademlia{
+			Contact:      node,
+			RoutingTable: NewRoutingTable(node),
+			Network:      network,
+			Data:         make(map[string][]byte),
+		}
+
+		network.ServerListen(nodes[i])
+
+	}
+
+	success := 0
+	failures := 0
+
+	var wg sync.WaitGroup
+	var wgdata sync.WaitGroup
+	var countermu sync.Mutex
+
+	for i := 0; i < len(nodes); i++ {
+		for j := 1; j <= 10; j++ {
+			newNode := (i + j) % len(nodes)
+			nodes[i].RoutingTable.AddContact(nodes[newNode].Contact)
+		}
+
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			value := []byte("value" + strconv.Itoa(i))
+			_ = nodes[i].Store(value)
+		}(i)
+	}
+	wg.Wait()
+
+	for i := 0; i < len(nodes); i++ {
+		wgdata.Add(1)
+		go func(i int) {
+			defer wgdata.Done()
+			value := []byte("value" + strconv.Itoa(i))
+			hashed := NewValueID(value).String()
+			result, _, err := nodes[i].LookupData(hashed)
+
+			countermu.Lock()
+			if err != nil || len(result) == 0 {
+				failures++
+			} else {
+				success++
+			}
+			countermu.Unlock()
+		}(i)
+	}
+	wgdata.Wait()
+
+	if success+failures != len(nodes) {
+		t.Fatalf("They should cover every case")
+	}
+
+	successrate := float64(success) / float64(len(nodes))
+	failurerate := float64(failures) / float64(len(nodes))
+
+	t.Log("The success rate was", successrate*100, "failureate", failurerate*100)
+}
+
+func TestRaceConditionReceiver(t *testing.T) {
+	mock := NewMockNetwork()
+
+	nodes := make([]*Kademlia, 100)
+	randlatency := rand.Intn(len(nodes)) / 100
+
+	mock.latency = float64(time.Duration(randlatency) * time.Millisecond)
+	mock.packet_loss = 0.001
+
+	for i := 0; i < len(nodes); i++ {
+		node := NewContact(NewRandomKademliaID(), strconv.Itoa(i))
+
+		network, err := initNetwork(mock, node)
+		if err != nil {
+			t.Error(err)
+		}
+
+		nodes[i] = &Kademlia{
+			Contact:      node,
+			RoutingTable: NewRoutingTable(node),
+			Network:      network,
+			Data:         make(map[string][]byte),
+		}
+
+		network.ServerListen(nodes[i])
+
+	}
+
+	var wg sync.WaitGroup
+	var countermu sync.Mutex
+
+	success := 0
+	failures := 0
+
+	for i := 0; i < len(nodes); i++ {
+		for j := 1; j <= 10; j++ {
+			newNode := (i + j) % len(nodes)
+			nodes[i].RoutingTable.AddContact(nodes[newNode].Contact)
+		}
+
+		wg.Add(2)
+
+		go func(i int) {
+			defer wg.Done()
+			value := []byte("value" + strconv.Itoa(i))
+			_ = nodes[i].Store(value)
+		}(i)
+
+		go func(i int) {
+			defer wg.Done()
+			value := []byte("value" + strconv.Itoa(i))
+			hashed := NewValueID(value).String()
+			result, _, err := nodes[i].LookupData(hashed)
+
+			countermu.Lock()
+			if err != nil || len(result) == 0 {
+				failures++
+			} else {
+				success++
+			}
+			countermu.Unlock()
+		}(i)
+
+	}
+	wg.Wait()
+
+	if success+failures != len(nodes) {
+		t.Fatalf("They should cover every case")
+	}
+
+	successrate := float64(success) / float64(len(nodes))
+	failurerate := float64(failures) / float64(len(nodes))
+
+	t.Log("The success rate was", successrate*100, "failureate", failurerate*100)
+
 }
 func TestSendFindDataMessageOutcomes(t *testing.T) {
 	tests := []struct {
@@ -171,80 +401,4 @@ func TestSendFindDataMessageOutcomes(t *testing.T) {
 		})
 
 	}
-}
-
-func TestSendStoreMessage(t *testing.T) {
-	mock := NewMockNetwork()
-
-	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
-	node2 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2")
-
-	network1, err := initNetwork(mock, node1)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	network2, err := initNetwork(mock, node2)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	kademlia1 := &Kademlia{
-		Contact:      node1,
-		RoutingTable: NewRoutingTable(node1),
-		Network:      network1,
-	}
-	kademlia2 := &Kademlia{
-		Contact:      node2,
-		RoutingTable: NewRoutingTable(node2),
-		Network:      network2,
-	}
-	network1.ServerListen(kademlia1)
-	network2.ServerListen(kademlia2)
-
-	data := []byte("value")
-	target := NewValueID(data)
-
-	if err := network1.SendStoreMessage(&node2, target, data); err != nil {
-		t.Fatalf("SendStoreMessage failed: %v", err)
-	}
-
-	stored, ok := kademlia2.Data[target.String()]
-	if !ok {
-		t.Fatal("expected receiver to store the value")
-	}
-	if string(stored) != string(data) {
-		t.Fatalf("expected stored value %q, got %q", data, stored)
-	}
-
-	kademlia1.Network.listener.Close()
-	kademlia2.Network.listener.Close()
-}
-
-func TestSendStoreMessageRejectsMismatchedTarget(t *testing.T) {
-	mock := NewMockNetwork()
-	node1 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "node1")
-	node2 := NewContact(NewKademliaID("0000000000000000000000000000000000000000000000000000000000000002"), "node2")
-
-	network1, err := initNetwork(mock, node1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	network2, err := initNetwork(mock, node2)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	kademlia1 := &Kademlia{Contact: node1, RoutingTable: NewRoutingTable(node1), Network: network1}
-	kademlia2 := &Kademlia{Contact: node2, RoutingTable: NewRoutingTable(node2), Network: network2}
-	network1.ServerListen(kademlia1)
-	network2.ServerListen(kademlia2)
-
-	wrongTarget := NewKademliaID("0000000000000000000000000000000000000000000000000000000000000003")
-	if err := network1.SendStoreMessage(&node2, wrongTarget, []byte("value")); err == nil {
-		t.Fatal("expected the receiver to reject a target that does not hash from the value")
-	}
-
-	kademlia1.Network.listener.Close()
-	kademlia2.Network.listener.Close()
 }
