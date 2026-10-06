@@ -49,9 +49,9 @@ func (c *mockConnection) Send(msg Message) error {
 		c.network.mu.RUnlock()
 		return errors.New("destination address not found")
 	}
-
 	if rand.Float64() < c.network.packet_loss {
-		return nil
+		c.network.mu.RUnlock()
+		return errors.New("Packet dropped")
 	}
 
 	time.Sleep(time.Duration(c.network.latency))
