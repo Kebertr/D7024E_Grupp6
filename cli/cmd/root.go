@@ -128,7 +128,7 @@ func runShell() {
 		case "ping":
 			shellPing(fields[1:])
 		case "put":
-			contacts := node.RoutingTable.GetAllContacts()
+			contacts := node.RoutingTable.YoinkContacts()
 			println(len(contacts))
 			shellput(fields[0:])
 		case "get":
