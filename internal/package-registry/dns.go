@@ -1,11 +1,7 @@
 package package_registry
 
-type DNS interface {
-	Registery() error
-	lookup() (DNSTXT, error)
-}
+import "crypto/rsa"
 
-type DNSTXT struct {
-	name      string
-	publicKey string
+type DNS interface {
+	lookup(domain string) (rsa.PublicKey, error)
 }

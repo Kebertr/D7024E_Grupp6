@@ -1,9 +1,10 @@
 package package_registry
 
-import "crypto/rsa"
+import (
+	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
+)
 
 type registry struct {
-	Kademlia *Kademlia,
-	DNS	 DNS,
-	privateKeys map[String] rsa.PrivateKey
+	Kademlia kademlia.Kademlia
+	DNS      DNS
 }
