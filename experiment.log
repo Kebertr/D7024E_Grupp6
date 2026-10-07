@@ -1,0 +1,24 @@
+=== RUN   TestExperiment
+=== RUN   TestExperiment/lookup_scalability
+    exp_test.go:164: config nodes=10 packet_loss=0.000 seeds=3 lookups=30 success_rate=1.000 average_probes=5.70 average_lookup_time=666.662µs
+    exp_test.go:164: config nodes=50 packet_loss=0.000 seeds=3 lookups=30 success_rate=1.000 average_probes=5.90 average_lookup_time=1.129915ms
+    exp_test.go:164: config nodes=100 packet_loss=0.000 seeds=3 lookups=30 success_rate=1.000 average_probes=6.00 average_lookup_time=811.423µs
+    exp_test.go:164: config nodes=250 packet_loss=0.000 seeds=3 lookups=30 success_rate=1.000 average_probes=6.20 average_lookup_time=815.773µs
+    exp_test.go:164: config nodes=500 packet_loss=0.000 seeds=3 lookups=30 success_rate=1.000 average_probes=6.20 average_lookup_time=867.333µs
+    exp_test.go:164: config nodes=1000 packet_loss=0.000 seeds=3 lookups=30 success_rate=1.000 average_probes=6.90 average_lookup_time=866.536µs
+=== RUN   TestExperiment/lookup_reliability
+    exp_test.go:170: config nodes=100 packet_loss=0.000 seeds=3 lookups=30 success_rate=1.000 average_probes=6.00 average_lookup_time=203.855347ms
+    exp_test.go:170: config nodes=100 packet_loss=0.000 seeds=3 lookups=30 success_rate=1.000 average_probes=6.00 average_lookup_time=603.796783ms
+    exp_test.go:170: config nodes=100 packet_loss=0.000 seeds=3 lookups=30 success_rate=1.000 average_probes=6.00 average_lookup_time=1.004033369s
+    exp_test.go:170: config nodes=100 packet_loss=0.000 seeds=3 lookups=30 success_rate=1.000 average_probes=6.00 average_lookup_time=2.004728256s
+=== RUN   TestExperiment/lookup_loss
+    exp_test.go:176: config nodes=100 packet_loss=0.100 seeds=3 lookups=30 success_rate=1.000 average_probes=6.00 average_lookup_time=701.572848ms
+    exp_test.go:176: config nodes=100 packet_loss=0.200 seeds=3 lookups=30 success_rate=0.967 average_probes=5.90 average_lookup_time=1.251538776s
+    exp_test.go:176: config nodes=100 packet_loss=0.350 seeds=3 lookups=30 success_rate=0.867 average_probes=5.50 average_lookup_time=1.301408714s
+    exp_test.go:176: config nodes=100 packet_loss=0.500 seeds=3 lookups=30 success_rate=0.733 average_probes=4.50 average_lookup_time=1.251067016s
+--- PASS: TestExperiment (257.15s)
+    --- PASS: TestExperiment/lookup_scalability (6.67s)
+    --- PASS: TestExperiment/lookup_reliability (114.89s)
+    --- PASS: TestExperiment/lookup_loss (135.59s)
+PASS
+ok  	github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia	258.176s

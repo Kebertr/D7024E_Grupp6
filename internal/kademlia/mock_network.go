@@ -44,6 +44,16 @@ type mockConnection struct {
 // Need to be outside function so Query in kademlia can reach this
 var ErrPD = errors.New("Packet dropped")
 
+// !!IMPORTANT!!
+// Here is where we set the seed
+var rng = rand.New(rand.NewSource(1))
+var rngMu sync.Mutex
+
+func randomFloat64() float64 {
+	rngMu.Lock()
+	defer rngMu.Unlock()
+	return rng.Float64()
+}
 func (c *mockConnection) Send(msg Message) error {
 	c.network.mu.RLock()
 
@@ -52,7 +62,7 @@ func (c *mockConnection) Send(msg Message) error {
 		c.network.mu.RUnlock()
 		return errors.New("destination address not found")
 	}
-	if rand.Float64() < c.network.packet_loss {
+	if randomFloat64() < c.network.packet_loss {
 		c.network.mu.RUnlock()
 		return ErrPD
 	}

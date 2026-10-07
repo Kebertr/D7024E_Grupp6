@@ -149,6 +149,7 @@ func runShell() {
 			}
 		case "detach":
 			fmt.Println("Use Ctrl-P, Ctrl-Q to detach.")
+
 		default:
 			fmt.Println("Unknown command. Type 'help' for available commands.")
 		}

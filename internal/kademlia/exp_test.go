@@ -3,18 +3,9 @@ package kademlia
 import (
 	"fmt"
 	"math/rand"
-	"sync"
 	"testing"
 	"time"
 )
-
-type experiment struct {
-	loss        float64
-	latency     int
-	seed        int64
-	networkSize int
-	mu          sync.Mutex
-}
 
 type configuration struct {
 	nodes      int
@@ -23,10 +14,35 @@ type configuration struct {
 	packetLoss float64
 }
 
-type experimentResult struct {
-	lookupSuccess float64
-	lookupMillis  float64
-	lookupProbes  float64
+type experimentConfigurations struct {
+	scalability []configuration
+	reliability []configuration
+	loss        []configuration
+}
+
+func getConf() experimentConfigurations {
+	return experimentConfigurations{
+		scalability: []configuration{
+			{nodes: 10, values: 10, packetLoss: 0, latency: 0},
+			{nodes: 50, values: 10, packetLoss: 0, latency: 0},
+			{nodes: 100, values: 10, packetLoss: 0, latency: 0},
+			{nodes: 250, values: 10, packetLoss: 0, latency: 0},
+			{nodes: 500, values: 10, packetLoss: 0, latency: 0},
+			{nodes: 1000, values: 10, packetLoss: 0, latency: 0},
+		},
+		reliability: []configuration{
+			{nodes: 100, values: 10, packetLoss: 0, latency: 50 * time.Millisecond},
+			{nodes: 100, values: 10, packetLoss: 0, latency: 150 * time.Millisecond},
+			{nodes: 100, values: 10, packetLoss: 0, latency: 250 * time.Millisecond},
+			{nodes: 100, values: 10, packetLoss: 0, latency: 500 * time.Millisecond},
+		},
+		loss: []configuration{
+			{nodes: 100, values: 10, packetLoss: 0.1, latency: 0},
+			{nodes: 100, values: 10, packetLoss: 0.2, latency: 0},
+			{nodes: 100, values: 10, packetLoss: 0.35, latency: 0},
+			{nodes: 100, values: 10, packetLoss: 0.5, latency: 0},
+		},
+	}
 }
 
 // Build net and pass it to every node
@@ -55,6 +71,7 @@ func buildNet(config configuration, seed int64) (*mockNetwork, []*Kademlia, erro
 		if err != nil {
 			return nil, nil, err
 		}
+		nodeNetwork.rpcTimeout = 1500 * time.Millisecond
 
 		nodes[i] = &Kademlia{
 			Contact:      contact,
@@ -66,22 +83,11 @@ func buildNet(config configuration, seed int64) (*mockNetwork, []*Kademlia, erro
 		nodeNetwork.ServerListen(nodes[i])
 	}
 
-	// Give every node a random initial routing table.
+	// Give every node complete knowledge of the network.
 	for i := range nodes {
-		order := rng.Perm(len(nodes))
-		added := 0
-
-		for _, candidate := range order {
-			if candidate == i {
-				continue
-			}
-
-			nodes[i].RoutingTable.AddContact(nodes[candidate].Contact)
-			added++
-
-			// Keep the initial topology sparse.
-			if added == BucketSize {
-				break
+		for j := range nodes {
+			if i != j {
+				nodes[i].RoutingTable.AddContact(nodes[j].Contact)
 			}
 		}
 	}
@@ -91,74 +97,85 @@ func buildNet(config configuration, seed int64) (*mockNetwork, []*Kademlia, erro
 
 	return network, nodes, nil
 }
+func runConfs(t *testing.T, config configuration, seeds []int64) {
+	t.Helper()
+
+	var totalSuccesses, totalFailures, totalProbes int64
+	var totalTime time.Duration
+
+	for _, seed := range seeds {
+		_, nodes, err := buildNet(config, seed)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		rng := rand.New(rand.NewSource(seed + 1000))
+		seedTime := time.Duration(0)
+
+		for lookup := 0; lookup < config.values; lookup++ {
+			source := nodes[rng.Intn(len(nodes))]
+			target := nodes[rng.Intn(len(nodes))]
+
+			start := time.Now()
+			_, _ = source.LookupContact(&target.Contact)
+			seedTime += time.Since(start)
+		}
+
+		for _, node := range nodes {
+			successes, failures, probes := node.GetStats()
+			totalSuccesses += successes
+			totalFailures += failures
+			totalProbes += probes
+			_ = node.Network.Close()
+		}
+
+		totalTime += seedTime
+	}
+
+	totalLookups := totalSuccesses + totalFailures
+	successRate := float64(0)
+	averageProbes := float64(0)
+	averageLookupTime := time.Duration(0)
+
+	if totalLookups > 0 {
+		successRate = float64(totalSuccesses) / float64(totalLookups)
+		averageProbes = float64(totalProbes) / float64(totalLookups)
+		averageLookupTime = totalTime / time.Duration(totalLookups)
+	}
+
+	t.Logf(
+		"config nodes=%d packet_loss=%.3f seeds=%d lookups=%d success_rate=%.3f average_probes=%.2f average_lookup_time=%s",
+		config.nodes,
+		config.packetLoss,
+		len(seeds),
+		totalLookups,
+		successRate,
+		averageProbes,
+		averageLookupTime,
+	)
+}
 
 func TestExperiment(t *testing.T) {
 	seeds := []int64{1, 2, 3}
-	configs := []configuration{
-		//None
-		{nodes: 100, values: 50, latency: 0, packetLoss: 0.0},
+	configs := getConf()
 
-		// PL (0.5% -> 5%)
-		{nodes: 100, values: 50, latency: 0, packetLoss: 0.005},
-		{nodes: 100, values: 50, latency: 0, packetLoss: 0.01},
-		{nodes: 100, values: 50, latency: 0, packetLoss: 0.05},
-
-		// Latency
-		{nodes: 100, values: 50, latency: 0 * time.Millisecond, packetLoss: 0},
-		{nodes: 100, values: 50, latency: 100 * time.Millisecond, packetLoss: 0},
-		{nodes: 100, values: 50, latency: 250 * time.Millisecond, packetLoss: 0},
-
-		// Both
-		{nodes: 100, values: 50, latency: 50 * time.Millisecond, packetLoss: 0.005},
-		{nodes: 100, values: 50, latency: 100 * time.Millisecond, packetLoss: 0.01},
-		{nodes: 100, values: 50, latency: 150 * time.Millisecond, packetLoss: 0.05},
-	}
-
-	for _, config := range configs {
-		for _, seed := range seeds {
-			network, nodes, err := buildNet(config, seed)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			rng := rand.New(rand.NewSource(seed + 1000))
-			successes := 0
-			totalTime := time.Duration(0)
-
-			for lookup := 0; lookup < config.values; lookup++ {
-				source := nodes[rng.Intn(len(nodes))]
-				target := nodes[rng.Intn(len(nodes))]
-
-				start := time.Now()
-				contacts, err := source.LookupContact(&target.Contact)
-				totalTime += time.Since(start)
-
-				if err == nil && len(contacts) > 0 {
-					successes++
-				}
-			}
-
-			successRate := float64(successes) / float64(config.values)
-			averageTime := totalTime / time.Duration(config.values)
-
-			t.Logf(
-				"seed=%d nodes=%d latency=%s packet_loss=%.2f success_rate=%.3f average_lookup_time=%s",
-				seed,
-				len(nodes),
-				config.latency,
-				config.packetLoss,
-				successRate,
-				averageTime,
-			)
-
-			// Close this network before creating the next one.
-			for _, node := range nodes {
-				_ = node.Network.Close()
-			}
-
-			_ = network
+	t.Run("lookup scalability", func(t *testing.T) {
+		for _, config := range configs.scalability {
+			runConfs(t, config, seeds)
 		}
-	}
+	})
+
+	t.Run("lookup reliability", func(t *testing.T) {
+		for _, config := range configs.reliability {
+			runConfs(t, config, seeds)
+		}
+	})
+
+	t.Run("lookup loss", func(t *testing.T) {
+		for _, config := range configs.loss {
+			runConfs(t, config, seeds)
+		}
+	})
 }
 
 /*
@@ -182,13 +199,6 @@ Mandatory experiments:
         Plot the number of probes needed during lookups as a function of N.
         Compare to the expected number of probes/"hops".
     Lookup reliability (success rate) as a function of packet loss probability.
-
-Examples of additional optional experiments:
-
-    Time between request and response as a function of packet loss and/or latency.
-    Number of lookup probes and time required for lookups as a function of alpha (particularly important to discuss what we should expect).
-    Lookup reliability as a function of churn rate. (Requires that you can control the churn rate, i.e. when nodes join/leave the network.)
-    Lookup reliability as a function of the replication factor k.
 
 Note that some of these experiments are affected by your RPC timeout/retry policy (i.e. how long you wait for a response and whether/how often you retry), which is therefore important to document clearly.
 */
