@@ -5,7 +5,8 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"encoding/json"
+
+	"google.golang.org/protobuf/proto"
 )
 
 type VersionRecord struct {
@@ -19,30 +20,18 @@ type VersionRecord struct {
 }
 
 func (vers *VersionRecord) hashingValues() (hash [32]byte, err error) {
-	tagByte, err := json.Marshal(vers.tag)
+	vsRecord := &VersionRecordProto{
+		Tag:                   vers.tag,
+		DomainName:            vers.domainName,
+		PackageName:           vers.packageName,
+		Version:               vers.version,
+		BlobHash:              vers.blobHash,
+		PreviousVersionRecord: vers.previousVersionRecord,
+	}
+	data, err := proto.Marshal(vsRecord)
 	if err != nil {
 		return [32]byte{}, err
 	}
-	domainNameByte, err := json.Marshal(vers.domainName)
-	if err != nil {
-		return [32]byte{}, err
-	}
-	packageNameByte, err := json.Marshal(vers.packageName)
-	if err != nil {
-		return [32]byte{}, err
-	}
-	versionByte, err := json.Marshal(vers.version)
-	if err != nil {
-		return [32]byte{}, err
-	}
-
-	data := make([]byte, 0)
-	data = append(data, tagByte...)
-	data = append(data, domainNameByte...)
-	data = append(data, packageNameByte...)
-	data = append(data, versionByte...)
-	data = append(data, vers.blobHash...)
-	data = append(data, vers.previousVersionRecord...)
 
 	hash = sha256.Sum256(data)
 	return hash, nil
@@ -70,5 +59,32 @@ func (vers *VersionRecord) verifySignature(publicKey *rsa.PublicKey) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (vers *VersionRecord) hashBlob(blob []byte) error {
+	hash := sha256.Sum256(blob)
+	vers.blobHash = hash[:]
+	return nil
+}
+
+func (vers *VersionRecord) hashOldRecord(oldRecord *VersionRecord) error {
+	vsRecord := &VersionRecordProto{
+		Tag:                   oldRecord.tag,
+		DomainName:            oldRecord.domainName,
+		PackageName:           oldRecord.packageName,
+		Version:               oldRecord.version,
+		BlobHash:              oldRecord.blobHash,
+		PreviousVersionRecord: oldRecord.previousVersionRecord,
+		Sig:                   oldRecord.sig,
+	}
+	data, err := proto.Marshal(vsRecord)
+	if err != nil {
+		return err
+	}
+
+	hash := sha256.Sum256(data)
+
+	vers.previousVersionRecord = hash[:]
 	return nil
 }

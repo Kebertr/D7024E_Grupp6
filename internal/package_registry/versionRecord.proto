@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package pacakage_registry;
+
+option go_package = "github.com/RasmusKebert/D7024E_Grupp6/internal/package_registry";
+
+message VersionRecordProto {
+	string tag                      = 1;
+	string domainName               = 2;
+	string packageName              = 3;
+	string version                 	= 4;
+	bytes blobHash                	= 5;    
+	bytes previousVersionRecord     = 6;
+	bytes sig                 	    = 7;     
+}
