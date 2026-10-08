@@ -8,10 +8,11 @@ import (
 )
 
 type configuration struct {
-	nodes      int
-	values     int
-	latency    time.Duration
-	packetLoss float64
+	nodes            int
+	values           int
+	latency          time.Duration
+	packetLoss       float64
+	fullRoutingTable bool
 }
 
 type experimentConfigurations struct {
@@ -23,12 +24,12 @@ type experimentConfigurations struct {
 func getConf() experimentConfigurations {
 	return experimentConfigurations{
 		scalability: []configuration{
-			{nodes: 10, values: 10, packetLoss: 0, latency: 0},
-			{nodes: 50, values: 10, packetLoss: 0, latency: 0},
-			{nodes: 100, values: 10, packetLoss: 0, latency: 0},
-			{nodes: 250, values: 10, packetLoss: 0, latency: 0},
-			{nodes: 500, values: 10, packetLoss: 0, latency: 0},
-			{nodes: 1000, values: 10, packetLoss: 0, latency: 0},
+			{nodes: 10, values: 10, packetLoss: 0, latency: 0, fullRoutingTable: true},
+			{nodes: 50, values: 10, packetLoss: 0, latency: 0, fullRoutingTable: true},
+			{nodes: 100, values: 10, packetLoss: 0, latency: 0, fullRoutingTable: true},
+			{nodes: 250, values: 10, packetLoss: 0, latency: 0, fullRoutingTable: true},
+			{nodes: 500, values: 10, packetLoss: 0, latency: 0, fullRoutingTable: true},
+			{nodes: 1000, values: 10, packetLoss: 0, latency: 0, fullRoutingTable: true},
 		},
 		reliability: []configuration{
 			{nodes: 100, values: 10, packetLoss: 0, latency: 50 * time.Millisecond},
@@ -72,6 +73,9 @@ func buildNet(config configuration, seed int64) (*mockNetwork, []*Kademlia, erro
 			return nil, nil, err
 		}
 		nodeNetwork.rpcTimeout = 1500 * time.Millisecond
+		if config.packetLoss > 0 {
+			nodeNetwork.rpcTimeout = 100 * time.Millisecond
+		}
 
 		nodes[i] = &Kademlia{
 			Contact:      contact,
@@ -83,11 +87,40 @@ func buildNet(config configuration, seed int64) (*mockNetwork, []*Kademlia, erro
 		nodeNetwork.ServerListen(nodes[i])
 	}
 
-	// Give every node complete knowledge of the network.
-	for i := range nodes {
-		for j := range nodes {
-			if i != j {
-				nodes[i].RoutingTable.AddContact(nodes[j].Contact)
+	if config.fullRoutingTable {
+		for i := range nodes {
+			for j := range nodes {
+				if i == j {
+					continue
+				}
+
+				bucketIndex := nodes[i].RoutingTable.getBucketIndex(nodes[j].Contact.ID)
+				nodes[i].RoutingTable.buckets[bucketIndex].List.PushFront(nodes[j].Contact)
+			}
+		}
+	} else {
+		const extraNeighbors = 2
+
+		for i := range nodes {
+			if len(nodes) < 2 {
+				continue
+			}
+
+			nodes[i].RoutingTable.AddContact(
+				nodes[(i+len(nodes)-1)%len(nodes)].Contact,
+			)
+			nodes[i].RoutingTable.AddContact(
+				nodes[(i+1)%len(nodes)].Contact,
+			)
+
+			for added := 0; added < extraNeighbors; {
+				randomIndex := rng.Intn(len(nodes))
+				if randomIndex == i {
+					continue
+				}
+
+				nodes[i].RoutingTable.AddContact(nodes[randomIndex].Contact)
+				added++
 			}
 		}
 	}
@@ -144,8 +177,9 @@ func runConfs(t *testing.T, config configuration, seeds []int64) {
 	}
 
 	t.Logf(
-		"config nodes=%d packet_loss=%.3f seeds=%d lookups=%d success_rate=%.3f average_probes=%.2f average_lookup_time=%s",
+		"nodes=%d latency=%s packet_loss=%.3f seeds=%d lookups=%d success_rate=%.3f average_probes=%.2f average_lookup_time=%s",
 		config.nodes,
+		config.latency,
 		config.packetLoss,
 		len(seeds),
 		totalLookups,

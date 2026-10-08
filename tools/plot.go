@@ -17,7 +17,7 @@ type Result struct {
 }
 
 var linePattern = regexp.MustCompile(
-	`config nodes=(\d+) packet_loss=([\d.]+).*success_rate=([\d.]+).*average_probes=([\d.]+)`,
+	`nodes=(\d+) .*packet_loss=([\d.]+).*success_rate=([\d.]+).*average_probes=([\d.]+)`,
 )
 
 func main() {
@@ -187,7 +187,34 @@ func writeSVG(
 	fmt.Fprintf(file, `<text x="20" y="%d" transform="rotate(-90 20,%d)" text-anchor="middle">%s</text>`,
 		height/2, height/2, yLabel)
 
-	drawLine := func(points []Point, color string) {
+	const tickCount = 5
+	plotWidth := float64(width - left - right)
+	plotHeight := float64(height - top - bottom)
+	formatTick := func(value float64) string {
+		if math.Abs(value-math.Round(value)) < 0.0001 {
+			return fmt.Sprintf("%.0f", value)
+		}
+		return fmt.Sprintf("%.2f", value)
+	}
+
+	for index := 0; index <= tickCount; index++ {
+		fraction := float64(index) / tickCount
+		xValue := fraction * xMax
+		xPosition := float64(left) + fraction*plotWidth
+		yValue := fraction * yMax
+		yPosition := float64(height-bottom) - fraction*plotHeight
+
+		fmt.Fprintf(file, `<line x1="%.1f" y1="%d" x2="%.1f" y2="%d" stroke="#dddddd"/>`,
+			xPosition, height-bottom, xPosition, height-bottom+5)
+		fmt.Fprintf(file, `<text x="%.1f" y="%d" text-anchor="middle" font-size="12">%s</text>`,
+			xPosition, height-bottom+20, formatTick(xValue))
+		fmt.Fprintf(file, `<line x1="%d" y1="%.1f" x2="%d" y2="%.1f" stroke="#dddddd"/>`,
+			left-5, yPosition, left, yPosition)
+		fmt.Fprintf(file, `<text x="%d" y="%.1f" text-anchor="end" dominant-baseline="middle" font-size="12">%s</text>`,
+			left-10, yPosition, formatTick(yValue))
+	}
+
+	drawLine := func(points []Point, color string, name string, legendY int) {
 		if len(points) == 0 {
 			return
 		}
@@ -202,10 +229,16 @@ func writeSVG(
 			fmt.Fprintf(file, `<circle cx="%.1f" cy="%.1f" r="4" fill="%s"/>`,
 				x(point.x), y(point.y), color)
 		}
+
+		legendX := width - right - 150
+		fmt.Fprintf(file, `<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="%s" stroke-width="3"/>`,
+			legendX, legendY, legendX+25, legendY, color)
+		fmt.Fprintf(file, `<text x="%d" y="%d" dominant-baseline="middle" font-size="12">%s</text>`,
+			legendX+32, legendY, name)
 	}
 
-	drawLine(first, "blue")
-	drawLine(second, "red")
+	drawLine(first, "blue", "Measured", 42)
+	drawLine(second, "red", "Expected log2(N)", 58)
 
 	fmt.Fprint(file, `</svg>`)
 }
