@@ -13,3 +13,12 @@ message VersionRecordProto {
 	bytes previousVersionRecord     = 6;
 	bytes sig                 	    = 7;     
 }
+
+message LatestPointerProto {
+	string tag                      = 1;
+	string domainName               = 2;
+	string packageName              = 3;
+	string version                 	= 4; 
+	bytes versionRecordHash		    = 5;
+	bytes sig                 	    = 6;     
+}

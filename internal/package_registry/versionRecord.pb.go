@@ -113,6 +113,90 @@ func (x *VersionRecordProto) GetSig() []byte {
 	return nil
 }
 
+type LatestPointerProto struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Tag               string                 `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
+	DomainName        string                 `protobuf:"bytes,2,opt,name=domainName,proto3" json:"domainName,omitempty"`
+	PackageName       string                 `protobuf:"bytes,3,opt,name=packageName,proto3" json:"packageName,omitempty"`
+	Version           string                 `protobuf:"bytes,4,opt,name=version,proto3" json:"version,omitempty"`
+	VersionRecordHash []byte                 `protobuf:"bytes,5,opt,name=versionRecordHash,proto3" json:"versionRecordHash,omitempty"`
+	Sig               []byte                 `protobuf:"bytes,6,opt,name=sig,proto3" json:"sig,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *LatestPointerProto) Reset() {
+	*x = LatestPointerProto{}
+	mi := &file_internal_package_registry_versionRecord_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LatestPointerProto) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LatestPointerProto) ProtoMessage() {}
+
+func (x *LatestPointerProto) ProtoReflect() protoreflect.Message {
+	mi := &file_internal_package_registry_versionRecord_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LatestPointerProto.ProtoReflect.Descriptor instead.
+func (*LatestPointerProto) Descriptor() ([]byte, []int) {
+	return file_internal_package_registry_versionRecord_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *LatestPointerProto) GetTag() string {
+	if x != nil {
+		return x.Tag
+	}
+	return ""
+}
+
+func (x *LatestPointerProto) GetDomainName() string {
+	if x != nil {
+		return x.DomainName
+	}
+	return ""
+}
+
+func (x *LatestPointerProto) GetPackageName() string {
+	if x != nil {
+		return x.PackageName
+	}
+	return ""
+}
+
+func (x *LatestPointerProto) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *LatestPointerProto) GetVersionRecordHash() []byte {
+	if x != nil {
+		return x.VersionRecordHash
+	}
+	return nil
+}
+
+func (x *LatestPointerProto) GetSig() []byte {
+	if x != nil {
+		return x.Sig
+	}
+	return nil
+}
+
 var File_internal_package_registry_versionRecord_proto protoreflect.FileDescriptor
 
 const file_internal_package_registry_versionRecord_proto_rawDesc = "" +
@@ -127,7 +211,16 @@ const file_internal_package_registry_versionRecord_proto_rawDesc = "" +
 	"\aversion\x18\x04 \x01(\tR\aversion\x12\x1a\n" +
 	"\bblobHash\x18\x05 \x01(\fR\bblobHash\x124\n" +
 	"\x15previousVersionRecord\x18\x06 \x01(\fR\x15previousVersionRecord\x12\x10\n" +
-	"\x03sig\x18\a \x01(\fR\x03sigBAZ?github.com/RasmusKebert/D7024E_Grupp6/internal/package_registryb\x06proto3"
+	"\x03sig\x18\a \x01(\fR\x03sig\"\xc2\x01\n" +
+	"\x12LatestPointerProto\x12\x10\n" +
+	"\x03tag\x18\x01 \x01(\tR\x03tag\x12\x1e\n" +
+	"\n" +
+	"domainName\x18\x02 \x01(\tR\n" +
+	"domainName\x12 \n" +
+	"\vpackageName\x18\x03 \x01(\tR\vpackageName\x12\x18\n" +
+	"\aversion\x18\x04 \x01(\tR\aversion\x12,\n" +
+	"\x11versionRecordHash\x18\x05 \x01(\fR\x11versionRecordHash\x12\x10\n" +
+	"\x03sig\x18\x06 \x01(\fR\x03sigBAZ?github.com/RasmusKebert/D7024E_Grupp6/internal/package_registryb\x06proto3"
 
 var (
 	file_internal_package_registry_versionRecord_proto_rawDescOnce sync.Once
@@ -141,9 +234,10 @@ func file_internal_package_registry_versionRecord_proto_rawDescGZIP() []byte {
 	return file_internal_package_registry_versionRecord_proto_rawDescData
 }
 
-var file_internal_package_registry_versionRecord_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_internal_package_registry_versionRecord_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_internal_package_registry_versionRecord_proto_goTypes = []any{
 	(*VersionRecordProto)(nil), // 0: pacakage_registry.VersionRecordProto
+	(*LatestPointerProto)(nil), // 1: pacakage_registry.LatestPointerProto
 }
 var file_internal_package_registry_versionRecord_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -164,7 +258,7 @@ func file_internal_package_registry_versionRecord_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_package_registry_versionRecord_proto_rawDesc), len(file_internal_package_registry_versionRecord_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
