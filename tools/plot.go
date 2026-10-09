@@ -13,11 +13,12 @@ type Result struct {
 	nodes       int
 	packetLoss  float64
 	successRate float64
+	hops        float64
 	probes      float64
 }
 
 var linePattern = regexp.MustCompile(
-	`nodes=(\d+) .*packet_loss=([\d.]+).*success_rate=([\d.]+).*average_probes=([\d.]+)`,
+	`nodes=(\d+) .*packet_loss=([\d.]+).*success_rate=([\d.]+).*average_hops=([\d.]+).*average_probes=([\d.]+)`,
 )
 
 func main() {
@@ -31,12 +32,14 @@ func main() {
 		nodes, _ := strconv.Atoi(match[1])
 		packetLoss, _ := strconv.ParseFloat(match[2], 64)
 		successRate, _ := strconv.ParseFloat(match[3], 64)
-		probes, _ := strconv.ParseFloat(match[4], 64)
+		hops, _ := strconv.ParseFloat(match[4], 64)
+		probes, _ := strconv.ParseFloat(match[5], 64)
 
 		results = append(results, Result{
 			nodes:       nodes,
 			packetLoss:  packetLoss,
 			successRate: successRate,
+			hops:        hops,
 			probes:      probes,
 		})
 	}
@@ -63,9 +66,13 @@ func writeScalability(results []Result) {
 		return values[i].nodes < values[j].nodes
 	})
 
-	var measured, expected []Point
+	var hops, probes, expected []Point
 	for _, result := range values {
-		measured = append(measured, Point{
+		hops = append(hops, Point{
+			x: float64(result.nodes),
+			y: result.hops,
+		})
+		probes = append(probes, Point{
 			x: float64(result.nodes),
 			y: result.probes,
 		})
@@ -76,12 +83,21 @@ func writeScalability(results []Result) {
 	}
 
 	writeSVG(
-		"scalability.svg",
-		"Lookup scalability",
+		"scalability-hops.svg",
+		"Lookup scalability: hops",
+		"Network size N",
+		"Average hops",
+		hops,
+		expected,
+	)
+
+	writeSVG(
+		"scalability-probes.svg",
+		"Lookup scalability: probes",
 		"Network size N",
 		"Average probes",
-		measured,
-		expected,
+		probes,
+		nil,
 	)
 }
 

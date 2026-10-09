@@ -2,17 +2,17 @@ package kademlia
 
 import (
 	"fmt"
+	"math"
 	"math/rand"
 	"testing"
 	"time"
 )
 
 type configuration struct {
-	nodes            int
-	values           int
-	latency          time.Duration
-	packetLoss       float64
-	fullRoutingTable bool
+	nodes      int
+	values     int
+	latency    time.Duration
+	packetLoss float64
 }
 
 type experimentConfigurations struct {
@@ -24,12 +24,12 @@ type experimentConfigurations struct {
 func getConf() experimentConfigurations {
 	return experimentConfigurations{
 		scalability: []configuration{
-			{nodes: 10, values: 10, packetLoss: 0, latency: 0, fullRoutingTable: true},
-			{nodes: 50, values: 10, packetLoss: 0, latency: 0, fullRoutingTable: true},
-			{nodes: 100, values: 10, packetLoss: 0, latency: 0, fullRoutingTable: true},
-			{nodes: 250, values: 10, packetLoss: 0, latency: 0, fullRoutingTable: true},
-			{nodes: 500, values: 10, packetLoss: 0, latency: 0, fullRoutingTable: true},
-			{nodes: 1000, values: 10, packetLoss: 0, latency: 0, fullRoutingTable: true},
+			{nodes: 10, values: 10, packetLoss: 0, latency: 0},
+			{nodes: 50, values: 10, packetLoss: 0, latency: 0},
+			{nodes: 100, values: 10, packetLoss: 0, latency: 0},
+			{nodes: 250, values: 10, packetLoss: 0, latency: 0},
+			{nodes: 500, values: 10, packetLoss: 0, latency: 0},
+			{nodes: 1000, values: 10, packetLoss: 0, latency: 0},
 		},
 		reliability: []configuration{
 			{nodes: 100, values: 10, packetLoss: 0, latency: 50 * time.Millisecond},
@@ -87,41 +87,28 @@ func buildNet(config configuration, seed int64) (*mockNetwork, []*Kademlia, erro
 		nodeNetwork.ServerListen(nodes[i])
 	}
 
-	if config.fullRoutingTable {
-		for i := range nodes {
-			for j := range nodes {
-				if i == j {
-					continue
-				}
+	const extraNeighbors = 2
 
-				bucketIndex := nodes[i].RoutingTable.getBucketIndex(nodes[j].Contact.ID)
-				nodes[i].RoutingTable.buckets[bucketIndex].List.PushFront(nodes[j].Contact)
-			}
+	for i := range nodes {
+		if len(nodes) < 2 {
+			continue
 		}
-	} else {
-		const extraNeighbors = 2
 
-		for i := range nodes {
-			if len(nodes) < 2 {
+		nodes[i].RoutingTable.AddContact(
+			nodes[(i+len(nodes)-1)%len(nodes)].Contact,
+		)
+		nodes[i].RoutingTable.AddContact(
+			nodes[(i+1)%len(nodes)].Contact,
+		)
+
+		for added := 0; added < extraNeighbors; {
+			randomIndex := rng.Intn(len(nodes))
+			if randomIndex == i {
 				continue
 			}
 
-			nodes[i].RoutingTable.AddContact(
-				nodes[(i+len(nodes)-1)%len(nodes)].Contact,
-			)
-			nodes[i].RoutingTable.AddContact(
-				nodes[(i+1)%len(nodes)].Contact,
-			)
-
-			for added := 0; added < extraNeighbors; {
-				randomIndex := rng.Intn(len(nodes))
-				if randomIndex == i {
-					continue
-				}
-
-				nodes[i].RoutingTable.AddContact(nodes[randomIndex].Contact)
-				added++
-			}
+			nodes[i].RoutingTable.AddContact(nodes[randomIndex].Contact)
+			added++
 		}
 	}
 
@@ -133,7 +120,7 @@ func buildNet(config configuration, seed int64) (*mockNetwork, []*Kademlia, erro
 func runConfs(t *testing.T, config configuration, seeds []int64) {
 	t.Helper()
 
-	var totalSuccesses, totalFailures, totalProbes int64
+	var totalSuccesses, totalFailures, totalProbes, totalHops int64
 	var totalTime time.Duration
 
 	for _, seed := range seeds {
@@ -159,6 +146,7 @@ func runConfs(t *testing.T, config configuration, seeds []int64) {
 			totalSuccesses += successes
 			totalFailures += failures
 			totalProbes += probes
+			totalHops += node.GetHopStats()
 			_ = node.Network.Close()
 		}
 
@@ -168,22 +156,26 @@ func runConfs(t *testing.T, config configuration, seeds []int64) {
 	totalLookups := totalSuccesses + totalFailures
 	successRate := float64(0)
 	averageProbes := float64(0)
+	averageHops := float64(0)
 	averageLookupTime := time.Duration(0)
 
 	if totalLookups > 0 {
 		successRate = float64(totalSuccesses) / float64(totalLookups)
 		averageProbes = float64(totalProbes) / float64(totalLookups)
+		averageHops = float64(totalHops) / float64(totalLookups)
 		averageLookupTime = totalTime / time.Duration(totalLookups)
 	}
 
 	t.Logf(
-		"nodes=%d latency=%s packet_loss=%.3f seeds=%d lookups=%d success_rate=%.3f average_probes=%.2f average_lookup_time=%s",
+		"nodes=%d expected_hops=%.2f latency=%s packet_loss=%.3f seeds=%d lookups=%d success_rate=%.3f average_hops=%.2f average_probes=%.2f average_lookup_time=%s",
 		config.nodes,
+		math.Log2(float64(config.nodes)),
 		config.latency,
 		config.packetLoss,
 		len(seeds),
 		totalLookups,
 		successRate,
+		averageHops,
 		averageProbes,
 		averageLookupTime,
 	)

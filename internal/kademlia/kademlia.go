@@ -25,6 +25,7 @@ type Kademlia struct {
 // on shared variables that happens indivisibly
 type LookupStats struct {
 	totalProbes atomic.Int64
+	totalHops   atomic.Int64
 	successes   atomic.Int64
 	failures    atomic.Int64
 }
@@ -83,6 +84,12 @@ func (kademlia *Kademlia) LookupContact(target *Contact) (contacts []Contact, er
 		results, err := QueryBatch(kademlia.Network, batch, target.ID)
 		if err != nil {
 			return nil, err
+		}
+		for _, result := range results {
+			if result != nil {
+				kademlia.LookupStats.totalHops.Add(1)
+				break
+			}
 		}
 
 		for i, result := range results {
@@ -209,6 +216,10 @@ func (kademlia *Kademlia) GetStats() (successes, failures, probes int64) {
 	return kademlia.LookupStats.successes.Load(),
 		kademlia.LookupStats.failures.Load(),
 		kademlia.LookupStats.totalProbes.Load()
+}
+
+func (kademlia *Kademlia) GetHopStats() int64 {
+	return kademlia.LookupStats.totalHops.Load()
 }
 
 // returns the next batch of unqueried contacts from the candidates list, up to the specified alpha value.
