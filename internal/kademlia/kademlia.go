@@ -165,6 +165,46 @@ func (kademlia *Kademlia) Store(data []byte) error {
 	return storeErr
 }
 
+func (kademlia *Kademlia) StorePart2(key []byte, data []byte) error {
+	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
+		return errors.New("invalid store arguments")
+	}
+
+	if len(data) > limitData {
+		return errors.New("data exceeds maximum size limit")
+	}
+
+	targetID := NewValueID(key)
+	target := Contact{ID: targetID}
+	contacts, err := kademlia.LookupContact(&target)
+	if err != nil {
+		return err
+	}
+
+	// The node performing the lookup can itself be one of the k closest nodes.
+	candidates := &ContactCandidates{}
+	candidates.Append(contacts)
+	MergeClosest(candidates, kademlia.Contact, targetID, shortListSize)
+
+	var storeErr error
+	for _, contact := range candidates.GetContacts(candidates.Len()) {
+		if contact.ID.Equals(kademlia.Contact.ID) {
+			kademlia.muData.Lock()
+
+			if kademlia.Data == nil {
+				kademlia.Data = make(map[string][]byte)
+			}
+			kademlia.Data[targetID.String()] = data
+			kademlia.muData.Unlock()
+			continue
+		}
+		if err := kademlia.Network.SendStoreMessage(&contact, targetID, data); err != nil {
+			storeErr = err
+		}
+	}
+	return storeErr
+}
+
 // HELPER FUNCTIONS
 // ------------------
 // returns the next batch of unqueried contacts from the candidates list, up to the specified alpha value.

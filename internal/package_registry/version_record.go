@@ -19,6 +19,15 @@ type VersionRecord struct {
 	sig                   []byte
 }
 
+type latestPointer struct {
+	tag               string
+	domainName        string
+	packageName       string
+	version           string
+	versionRecordHash []byte
+	sig               []byte
+}
+
 func (vers *VersionRecord) hashingValues() (hash [32]byte, err error) {
 	vsRecord := &VersionRecordProto{
 		Tag:                   vers.tag,
@@ -44,7 +53,7 @@ func (vers *VersionRecord) sign(privateKey *rsa.PrivateKey) error {
 	}
 	signature, err := rsa.SignPKCS1v15(rand.Reader, privateKey, crypto.SHA256, hash[:])
 	if err != nil {
-		panic("Our digital pen ran out of ink!, I took this message from a guide lol")
+		return err
 	}
 	vers.sig = signature
 	return nil
