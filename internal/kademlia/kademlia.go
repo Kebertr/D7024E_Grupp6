@@ -3,6 +3,7 @@ package kademlia
 import (
 	"errors"
 	"sync"
+	"sync/atomic"
 )
 
 const (
@@ -16,7 +17,17 @@ type Kademlia struct {
 	RoutingTable *RoutingTable
 	Network      *Network
 	Data         map[string][]byte
+	LookupStats  LookupStats
 	muData       sync.RWMutex
+}
+
+// Allows atomic memory operations (count++)
+// on shared variables that happens indivisibly
+type LookupStats struct {
+	totalProbes atomic.Int64
+	totalHops   atomic.Int64
+	successes   atomic.Int64
+	failures    atomic.Int64
 }
 
 func (kademlia *Kademlia) Ping(contact *Contact) error {
@@ -30,7 +41,23 @@ func (kademlia *Kademlia) Ping(contact *Contact) error {
 	return nil
 }
 
-func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
+func (kademlia *Kademlia) LookupContact(target *Contact) (contacts []Contact, err error) {
+	defer func() {
+		success := false
+		if err == nil && target != nil && target.ID != nil {
+			for _, contact := range contacts {
+				if contact.ID != nil && contact.ID.Equals(target.ID) {
+					success = true
+					break
+				}
+			}
+		}
+
+		if kademlia != nil {
+			kademlia.recordLookup(success)
+		}
+	}()
+
 	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil ||
 		target == nil || target.ID == nil {
 		return nil, errors.New("invalid lookup arguments")
@@ -48,6 +75,7 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 		if len(batch) == 0 {
 			break
 		}
+		kademlia.LookupStats.totalProbes.Add(int64(len(batch)))
 		before := make([]*KademliaID, len(candidates.contacts))
 		for i, candidate := range candidates.contacts {
 			before[i] = candidate.ID
@@ -56,6 +84,12 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 		results, err := QueryBatch(kademlia.Network, batch, target.ID)
 		if err != nil {
 			return nil, err
+		}
+		for _, result := range results {
+			if result != nil {
+				kademlia.LookupStats.totalHops.Add(1)
+				break
+			}
 		}
 
 		for i, result := range results {
@@ -167,6 +201,27 @@ func (kademlia *Kademlia) Store(data []byte) error {
 
 // HELPER FUNCTIONS
 // ------------------
+
+func (kademlia *Kademlia) recordLookup(success bool) {
+	if success {
+		kademlia.LookupStats.successes.Add(1)
+		return
+	}
+
+	kademlia.LookupStats.failures.Add(1)
+
+}
+
+func (kademlia *Kademlia) GetStats() (successes, failures, probes int64) {
+	return kademlia.LookupStats.successes.Load(),
+		kademlia.LookupStats.failures.Load(),
+		kademlia.LookupStats.totalProbes.Load()
+}
+
+func (kademlia *Kademlia) GetHopStats() int64 {
+	return kademlia.LookupStats.totalHops.Load()
+}
+
 // returns the next batch of unqueried contacts from the candidates list, up to the specified alpha value.
 // It also marks the contacts as queried in the provided map.
 func NextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha int) []Contact {
@@ -187,25 +242,23 @@ func NextUnqueried(candidates *ContactCandidates, queried map[string]bool, alpha
 func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Contact, error) {
 	results := make([][]Contact, len(batch))
 	errCh := make(chan error, len(batch))
-	resultCh := make(chan struct {
-		index    int
-		contacts []Contact
-	}, len(batch))
 
 	var wg sync.WaitGroup
 	wg.Add(len(batch))
 	for i, contact := range batch {
 		go func(i int, contact Contact) {
 			defer wg.Done()
+			// Query concurrently within the batch
 			contacts, err := network.SendFindContactMessage(&contact, targetID)
 			if err != nil {
+				if errors.Is(err, ErrPD) || errors.Is(err, ErrRPCTimeout) {
+					return
+
+				}
 				errCh <- err
 				return
 			}
-			resultCh <- struct {
-				index    int
-				contacts []Contact
-			}{i, contacts}
+			results[i] = contacts
 		}(i, contact)
 
 	}
@@ -214,18 +267,8 @@ func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 	case err := <-errCh:
 		return nil, err
 	default:
+		return results, nil
 	}
-
-	for i := 0; i < len(batch); i++ {
-		select {
-		case err := <-errCh:
-			return nil, err
-		case result := <-resultCh:
-			results[result.index] = result.contacts
-		}
-	}
-
-	return results, nil
 }
 
 type dataQueryResult struct {

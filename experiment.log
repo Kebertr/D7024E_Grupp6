@@ -1,0 +1,24 @@
+=== RUN   TestExperiment
+=== RUN   TestExperiment/lookup_scalability
+    exp_test.go:190: nodes=10 expected_hops=3.32 latency=0s packet_loss=0.000 seeds=3 lookups=30 success_rate=1.000 average_hops=2.23 average_probes=6.60 average_lookup_time=687.761µs
+    exp_test.go:190: nodes=50 expected_hops=5.64 latency=0s packet_loss=0.000 seeds=3 lookups=30 success_rate=0.933 average_hops=6.20 average_probes=17.93 average_lookup_time=1.713536ms
+    exp_test.go:190: nodes=100 expected_hops=6.64 latency=0s packet_loss=0.000 seeds=3 lookups=30 success_rate=0.733 average_hops=7.67 average_probes=21.33 average_lookup_time=1.901305ms
+    exp_test.go:190: nodes=250 expected_hops=7.97 latency=0s packet_loss=0.000 seeds=3 lookups=30 success_rate=0.200 average_hops=9.70 average_probes=26.87 average_lookup_time=3.088602ms
+    exp_test.go:190: nodes=500 expected_hops=8.97 latency=0s packet_loss=0.000 seeds=3 lookups=30 success_rate=0.133 average_hops=9.87 average_probes=27.30 average_lookup_time=2.819657ms
+    exp_test.go:190: nodes=1000 expected_hops=9.97 latency=0s packet_loss=0.000 seeds=3 lookups=30 success_rate=0.100 average_hops=10.03 average_probes=27.77 average_lookup_time=2.378998ms
+=== RUN   TestExperiment/lookup_reliability
+    exp_test.go:196: nodes=100 expected_hops=6.64 latency=50ms packet_loss=0.000 seeds=3 lookups=30 success_rate=0.733 average_hops=7.67 average_probes=21.33 average_lookup_time=777.382803ms
+    exp_test.go:196: nodes=100 expected_hops=6.64 latency=150ms packet_loss=0.000 seeds=3 lookups=30 success_rate=0.733 average_hops=7.67 average_probes=21.33 average_lookup_time=2.312087148s
+    exp_test.go:196: nodes=100 expected_hops=6.64 latency=250ms packet_loss=0.000 seeds=3 lookups=30 success_rate=0.733 average_hops=7.67 average_probes=21.33 average_lookup_time=3.846583531s
+    exp_test.go:196: nodes=100 expected_hops=6.64 latency=500ms packet_loss=0.000 seeds=3 lookups=30 success_rate=0.733 average_hops=7.67 average_probes=21.33 average_lookup_time=7.682557179s
+=== RUN   TestExperiment/lookup_loss
+    exp_test.go:202: nodes=100 expected_hops=6.64 latency=0s packet_loss=0.100 seeds=3 lookups=30 success_rate=0.700 average_hops=8.10 average_probes=22.87 average_lookup_time=175.431214ms
+    exp_test.go:202: nodes=100 expected_hops=6.64 latency=0s packet_loss=0.200 seeds=3 lookups=30 success_rate=0.467 average_hops=6.07 average_probes=18.40 average_lookup_time=254.557611ms
+    exp_test.go:202: nodes=100 expected_hops=6.64 latency=0s packet_loss=0.350 seeds=3 lookups=30 success_rate=0.367 average_hops=3.83 average_probes=13.07 average_lookup_time=229.684563ms
+    exp_test.go:202: nodes=100 expected_hops=6.64 latency=0s packet_loss=0.500 seeds=3 lookups=30 success_rate=0.133 average_hops=0.97 average_probes=5.70 average_lookup_time=104.421195ms
+--- PASS: TestExperiment (462.70s)
+    --- PASS: TestExperiment/lookup_scalability (0.85s)
+    --- PASS: TestExperiment/lookup_reliability (438.74s)
+    --- PASS: TestExperiment/lookup_loss (23.11s)
+PASS
+ok  	github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia	463.728s

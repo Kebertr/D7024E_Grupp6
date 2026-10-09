@@ -7,12 +7,21 @@ import (
 )
 
 type Network struct {
-	transport Transport
-	contact   Contact
-	listener  Connection
-	recmu     sync.RWMutex
-	receive   map[messageId]chan Message
-	wg        sync.WaitGroup
+	transport  Transport
+	contact    Contact
+	listener   Connection
+	rpcTimeout time.Duration
+	recmu      sync.RWMutex
+	receive    map[messageId]chan Message
+	wg         sync.WaitGroup
+}
+
+func (network *Network) timeout() time.Duration {
+	if network.rpcTimeout > 0 {
+		return network.rpcTimeout
+	}
+
+	return 2 * time.Second
 }
 
 type Address = string
@@ -69,10 +78,12 @@ func (network *Network) SendPingMessage(contact *Contact) (Contact, error) {
 			return Contact{}, errors.New("The Id do not match")
 		}
 		return response.From, nil
-	case <-time.After(2 * time.Second):
+	case <-time.After(network.timeout()):
 		return Contact{}, errors.New("ping timed out")
 	}
 }
+
+var ErrRPCTimeout = errors.New("RPC timeout")
 
 func (network *Network) SendFindContactMessage(contact *Contact, targetId *KademliaID) ([]Contact, error) {
 
@@ -104,8 +115,8 @@ func (network *Network) SendFindContactMessage(contact *Contact, targetId *Kadem
 			return nil, errors.New("The Id do not match")
 		}
 		return response.Contacts, nil
-	case <-time.After(2 * time.Second):
-		return nil, errors.New("find contact timed out")
+	case <-time.After(network.timeout()):
+		return nil, ErrRPCTimeout
 	}
 }
 
@@ -146,7 +157,7 @@ func (network *Network) SendFindDataMessage(contact *Contact, target *KademliaID
 			return response.Value, nil, true, nil
 		}
 		return nil, response.Contacts, false, nil
-	case <-time.After(2 * time.Second):
+	case <-time.After(network.timeout()):
 		return nil, nil, false, errors.New("find data timed out")
 	}
 
@@ -191,7 +202,7 @@ func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, d
 			return errors.New("invalid store response")
 		}
 		return nil
-	case <-time.After(2 * time.Second):
+	case <-time.After(network.timeout()):
 		return errors.New("Stored timed out")
 	}
 }
@@ -234,10 +245,11 @@ func initNetwork(transport Transport, contact Contact) (*Network, error) {
 	}
 
 	network := &Network{
-		transport: transport,
-		contact:   contact,
-		listener:  listener,
-		receive:   make(map[messageId]chan Message),
+		transport:  transport,
+		contact:    contact,
+		listener:   listener,
+		rpcTimeout: 2 * time.Second,
+		receive:    make(map[messageId]chan Message),
 	}
 
 	return network, nil
