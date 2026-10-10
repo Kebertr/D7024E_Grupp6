@@ -4,6 +4,7 @@ import (
 	"crypto/rsa"
 	"encoding/hex"
 
+	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -53,4 +54,15 @@ func (r *registry) showVersionPackage(domain string, packageUse string) (string,
 
 func (r *registry) showDNS(domain string) (rsa.PublicKey, error) {
 	return r.DNS.lookup(domain)
+}
+
+// Wrappers
+// Tried to change publicity to public did not work beacuse go is shit
+
+func Install(node *kademlia.Kademlia, dns DNS, domain, packageUse, version string) ([]byte, error) {
+	reg := &registry{
+		Kademlia: node,
+		DNS:      dns,
+	}
+	return reg.install(domain, packageUse, version)
 }

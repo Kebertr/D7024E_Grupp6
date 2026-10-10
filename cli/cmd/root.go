@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
+	"github.com/RasmusKebert/D7024E_Grupp6/internal/package_registry"
 	"github.com/spf13/cobra"
 )
 
@@ -150,6 +151,8 @@ func runShell() {
 		case "detach":
 			fmt.Println("Use Ctrl-P, Ctrl-Q to detach.")
 			return
+		case "install":
+			shellInstall(fields[1:])
 		default:
 			fmt.Println("Unknown command. Type 'help' for available commands.")
 		}
@@ -276,4 +279,34 @@ func shellShowDataStore() {
 	for key := range node.Data {
 		fmt.Println(key)
 	}
+}
+
+func shellInstall(args []string) {
+	if len(args) != 1 {
+		fmt.Println("Usage: install DOMAIN:PACKAGE:VERSION")
+		return
+	}
+
+	parts := strings.Split(args[0], ":")
+	if len(parts) != 3 {
+		fmt.Println("Usage: install DOMAIN:PACKAGE:VERSION")
+		return
+	}
+
+	domain := parts[0]
+	pkg := parts[1]
+	version := parts[2]
+
+	data, err := package_registry.Install(node, nil, domain, pkg, version)
+	if err != nil {
+		fmt.Println("Install failed:", err)
+		return
+	}
+
+	filename := pkg + ".pkg"
+	if err := os.WriteFile(filename, data, 0644); err != nil {
+		fmt.Println("Write failed:", err)
+		return
+	}
+	fmt.Println("Installed to", filename)
 }
