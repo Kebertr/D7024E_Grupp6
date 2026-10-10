@@ -104,12 +104,55 @@ func (r *registry) setLatestPointer(vers *VersionRecord, privateKey *rsa.Private
 		return err
 	}
 
+	publicKey, dnsErr := r.DNS.lookup(vers.domainName)
+
+	if dnsErr != nil {
+		return dnsErr
+	}
+
+	point := &latestPointer{
+		tag:               "latest-pointer",
+		domainName:        vers.domainName,
+		packageName:       vers.packageName,
+		version:           vers.version,
+		versionRecordHash: recordHash[:],
+		sig:               signature,
+	}
+
+	ver := point.verifySignaturePointer(&publicKey)
+
+	if ver != nil {
+		return ver
+	}
+
 	fullName := vers.domainName + ":" + vers.packageName + ":latest"
 
 	storeErr := r.Kademlia.StorePart2([]byte(fullName), bytePointer)
 
 	if storeErr != nil {
 		return storeErr
+	}
+	return nil
+}
+
+func (point *latestPointer) verifySignaturePointer(publicKey *rsa.PublicKey) error {
+	vsRecord := &LatestPointerProto{
+		Tag:               point.tag,
+		DomainName:        point.domainName,
+		PackageName:       point.packageName,
+		Version:           point.version,
+		VersionRecordHash: point.versionRecordHash,
+	}
+	data, err := proto.Marshal(vsRecord)
+	if err != nil {
+		return err
+	}
+
+	hash := sha256.Sum256(data)
+
+	err = rsa.VerifyPKCS1v15(publicKey, crypto.SHA256, hash[:], point.sig)
+	if err != nil {
+		return err
 	}
 	return nil
 }
