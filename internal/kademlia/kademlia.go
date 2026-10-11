@@ -2,6 +2,9 @@ package kademlia
 
 import (
 	"errors"
+	"fmt"
+	"net"
+	"strconv"
 	"sync"
 )
 
@@ -412,6 +415,10 @@ func (kademlia *Kademlia) handlePing(msg Message) error {
 }
 
 func NewKademlia(id *KademliaID, address string) (*Kademlia, error) {
+	if err := validateNodeID(id, address); err != nil {
+		return nil, err
+	}
+
 	contact := NewContact(id, address)
 
 	network, err := initNetwork(NewRealNetwork(), contact)
@@ -429,6 +436,34 @@ func NewKademlia(id *KademliaID, address string) (*Kademlia, error) {
 	network.ServerListen(node)
 
 	return node, nil
+}
+
+func validateNodeID(id *KademliaID, address string) error {
+	// SplitHostPort safely separates the host and port, including bracketed IPv6 addresses.
+	host, portString, err := net.SplitHostPort(address)
+	if err != nil {
+		return fmt.Errorf("invalid node address %q: %w", address, err)
+	}
+
+	port, err := strconv.Atoi(portString)
+	if err != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("node address must use a port between 1 and 65535")
+	}
+
+	// ParseIP rejects hostnames and normalizes the IP before checking its derived ID.
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return fmt.Errorf("node address host %q must be an IP address", host)
+	}
+
+	// Port zero is rejected because the OS-assigned port would differ from the
+	// port used to derive the node ID.
+	expectedID := IPPortDerivedNodeID(ip.String(), port)
+	if id == nil || !id.Equals(expectedID) {
+		return errors.New("node ID must be the SHA-256 hash of the node IP and port")
+	}
+
+	return nil
 }
 
 func (kademlia *Kademlia) Close() error {

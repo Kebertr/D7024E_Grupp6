@@ -3,6 +3,7 @@ package kademlia
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"math/rand"
 )
 
@@ -30,6 +31,13 @@ func NewRandomKademliaID() *KademliaID {
 		newKademliaID[i] = uint8(rand.Intn(256))
 	}
 	return &newKademliaID
+}
+
+// IPPortDerivedNodeID hashes the canonical "IP|port" representation for a node.
+func IPPortDerivedNodeID(ip string, port int) *KademliaID {
+	hash := sha256.Sum256(fmt.Appendf(nil, "%s|%d", ip, port))
+	id := KademliaID(hash)
+	return &id
 }
 
 // Takes <key,value> pair and makes 256 bit KadmeliaID
