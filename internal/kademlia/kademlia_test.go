@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestPing(t *testing.T) {
@@ -188,6 +189,63 @@ func TestLookupDataSkipsBadNodeAndUsesGoodNode(t *testing.T) {
 	}
 	if string(result) != string(data) || sender.Address != "node3" {
 		t.Fatalf("expected %q from node3, got %q from %s", data, result, sender.Address)
+	}
+}
+
+func TestReplicateSendsValueToClosestNodes(t *testing.T) {
+	mock := NewMockNetwork()
+	data := []byte("replicate me")
+	key := NewValueID(data)
+	k1 := lookupTestNode(t, mock, "0000000000000000000000000000000000000000000000000000000000000001", "node1",
+		map[string][]byte{key.String(): data})
+	k2 := lookupTestNode(t, mock, "0000000000000000000000000000000000000000000000000000000000000002", "node2", make(map[string][]byte))
+	k1.RoutingTable.AddContact(k2.Contact)
+
+	k1.replicate()
+
+	k2.muData.RLock()
+	got, ok := k2.Data[key.String()]
+	k2.muData.RUnlock()
+	if !ok || string(got) != string(data) {
+		t.Fatalf("expected node2 to receive replicated value, got %q (found=%v)", got, ok)
+	}
+}
+
+func TestReplicationLoopRunsAndStopsOnClose(t *testing.T) {
+	mock := NewMockNetwork()
+	data := []byte("periodic")
+	key := NewValueID(data)
+	k1 := lookupTestNode(t, mock, "0000000000000000000000000000000000000000000000000000000000000001", "node1",
+		map[string][]byte{key.String(): data})
+	k2 := lookupTestNode(t, mock, "0000000000000000000000000000000000000000000000000000000000000002", "node2", make(map[string][]byte))
+	k1.RoutingTable.AddContact(k2.Contact)
+	k1.stop = make(chan struct{})
+
+	k1.startReplication(10 * time.Millisecond)
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		k2.muData.RLock()
+		_, ok := k2.Data[key.String()]
+		k2.muData.RUnlock()
+		if ok {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	k2.muData.RLock()
+	_, ok := k2.Data[key.String()]
+	k2.muData.RUnlock()
+	if !ok {
+		t.Fatal("periodic replication did not deliver the value")
+	}
+
+	// Close must stop the goroutine (wg.Wait returns) and be safe to call twice.
+	if err := k1.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := k1.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 

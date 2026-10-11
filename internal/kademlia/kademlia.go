@@ -7,12 +7,17 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 )
 
 const (
 	alpha         = 3 // Number of parallel queries
 	shortListSize = bucketSize
 	limitData     = 4096
+	// k for replication: each value is re-sent to this many closest nodes.
+	replicationFactor = 5
+	// How often every stored value is re-sent to its k closest nodes.
+	replicationInterval = 2 * time.Minute
 )
 
 type Kademlia struct {
@@ -21,6 +26,12 @@ type Kademlia struct {
 	Network      *Network
 	Data         map[string][]byte
 	muData       sync.RWMutex
+
+	// Lifecycle of the replication goroutine. The zero values are safe, so
+	// nodes built without NewKademlia (e.g. in tests) simply never replicate.
+	stop      chan struct{}  // closed by Close to stop the goroutine
+	wg        sync.WaitGroup // lets Close wait until the goroutine has exited
+	closeOnce sync.Once      // makes Close safe to call more than once
 }
 
 func (kademlia *Kademlia) Ping(contact *Contact) error {
@@ -444,11 +455,75 @@ func NewKademlia(id *KademliaID, address string) (*Kademlia, error) {
 		RoutingTable: NewRoutingTable(contact),
 		Network:      network,
 		Data:         make(map[string][]byte),
+		stop:         make(chan struct{}),
 	}
 
 	network.ServerListen(node)
+	node.startReplication(replicationInterval)
 
 	return node, nil
+}
+
+// startReplication launches one background goroutine that calls replicate on
+// every tick until Close is called.
+func (kademlia *Kademlia) startReplication(interval time.Duration) {
+	kademlia.wg.Add(1)
+	go func() {
+		defer kademlia.wg.Done()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-kademlia.stop:
+				return
+			case <-ticker.C:
+				kademlia.replicate()
+			}
+		}
+	}()
+}
+
+// replicate re-sends every stored value to the k closest nodes of its key, so
+// values survive nodes leaving and reach nodes that joined later.
+// Receivers validate K = hash(V) in handleStore.
+func (kademlia *Kademlia) replicate() {
+	// Copy the map under the lock and release it before any network call, so
+	// a slow or dead peer can never block handlers that need muData.
+	kademlia.muData.RLock()
+	snapshot := make(map[string][]byte, len(kademlia.Data))
+	for key, value := range kademlia.Data {
+		snapshot[key] = value
+	}
+	kademlia.muData.RUnlock()
+
+	for key, value := range snapshot {
+		// Stop early on shutdown instead of finishing a long round.
+		select {
+		case <-kademlia.stop:
+			return
+		default:
+		}
+
+		targetID := NewKademliaID(key)
+		contacts, err := kademlia.LookupContact(&Contact{ID: targetID})
+		if err != nil {
+			log.Printf("replication: lookup for key %s failed: %v", key, err)
+			continue
+		}
+		// LookupContact returns the closest nodes first; keep only the k closest.
+		if len(contacts) > replicationFactor {
+			contacts = contacts[:replicationFactor]
+		}
+		for _, contact := range contacts {
+			if contact.ID.Equals(kademlia.Contact.ID) {
+				continue
+			}
+			// Contact is copied per iteration, so taking its address is safe.
+			if err := kademlia.Network.SendStoreMessage(&contact, targetID, value); err != nil {
+				log.Printf("replication: store to %s failed: %v", contact.Address, err)
+			}
+		}
+	}
 }
 
 func validateNodeID(id *KademliaID, address string) error {
@@ -484,6 +559,15 @@ func (kademlia *Kademlia) Close() error {
 		return nil
 	}
 
+	// Stop replication first and wait for it, so it cannot use a closed network.
+	// closeOnce prevents a panic from closing the channel twice.
+	kademlia.closeOnce.Do(func() {
+		if kademlia.stop != nil {
+			close(kademlia.stop)
+		}
+	})
+	kademlia.wg.Wait()
+
 	return kademlia.Network.Close()
 }
 
@@ -505,11 +589,12 @@ func (kademlia *Kademlia) handleStore(msg Message) error {
 			Type:      "STORE_ERROR",
 		})
 	}
+	// Lock before the nil check: checking and allocating the map outside the
+	// lock was a data race with concurrent readers and writers.
+	kademlia.muData.Lock()
 	if kademlia.Data == nil {
 		kademlia.Data = make(map[string][]byte)
 	}
-	kademlia.muData.Lock()
-
 	kademlia.Data[msg.Target.String()] = msg.Value
 	kademlia.muData.Unlock()
 
