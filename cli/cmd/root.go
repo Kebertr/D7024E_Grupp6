@@ -145,8 +145,12 @@ func runShell() {
 				shellShowRoutingTable()
 			case "ds":
 				shellShowDataStore()
+			case "dns DOMAIN":
+				shellShowDNS(fields[2])
+			case "version DOMAIN:PACKAGE":
+				shellShowVersionPackage()
 			default:
-				fmt.Println("Usage: show rt|ds")
+				fmt.Println("Usage: show rt|ds|dns DOMAIN|version DOMAIN:PACKAGE")
 			}
 		case "detach":
 			fmt.Println("Use Ctrl-P, Ctrl-Q to detach.")
@@ -282,17 +286,7 @@ func shellShowDataStore() {
 }
 
 func shellInstall(args []string) {
-	if len(args) != 1 {
-		fmt.Println("Usage: install DOMAIN:PACKAGE:VERSION")
-		return
-	}
-
 	parts := strings.Split(args[0], ":")
-	if len(parts) != 3 {
-		fmt.Println("Usage: install DOMAIN:PACKAGE:VERSION")
-		return
-	}
-
 	domain := parts[0]
 	pkg := parts[1]
 	version := parts[2]
@@ -309,4 +303,38 @@ func shellInstall(args []string) {
 		return
 	}
 	fmt.Println("Installed to", filename)
+}
+
+func shellShowDNS(domain string) {
+	if node == nil {
+		fmt.Println("Start a node before showing the DNS entry")
+		return
+	}
+
+	key, err := package_registry.ShowDNS(node, nil, domain)
+	if err != nil {
+		fmt.Println("DNS lookup failed:", err)
+		return
+	}
+
+	fmt.Printf("DNS for %s: %v\n", domain, key)
+}
+func shellShowVersionPackage() {
+	if node == nil {
+		fmt.Println("Start a node before showing the version of a package")
+		return
+	}
+
+	parts := strings.Split(os.Args[3], ":")
+	domain := parts[0]
+	pkg := parts[1]
+
+	version, err := package_registry.ShowVersionPackage(node, nil, domain, pkg)
+	if err != nil {
+		fmt.Println("Version lookup failed:", err)
+		return
+	}
+
+	fmt.Printf("Version for %s:%s: %s\n", domain, pkg, version)
+
 }

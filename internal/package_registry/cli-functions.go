@@ -66,3 +66,19 @@ func Install(node *kademlia.Kademlia, dns DNS, domain, packageUse, version strin
 	}
 	return reg.install(domain, packageUse, version)
 }
+
+func ShowVersionPackage(node *kademlia.Kademlia, dns DNS, domain, packageUse string) (string, error) {
+	reg := &registry{
+		Kademlia: node,
+		DNS:      dns,
+	}
+	return reg.showVersionPackage(domain, packageUse)
+}
+
+func ShowDNS(node *kademlia.Kademlia, dns DNS, domain string) (rsa.PublicKey, error) {
+	reg := &registry{
+		Kademlia: node,
+		DNS:      dns,
+	}
+	return reg.showDNS(domain)
+}
