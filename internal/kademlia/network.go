@@ -158,7 +158,7 @@ func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, d
 	}
 
 	if len(data) > limitData {
-		return errors.New("data size exceeds 1024 bytes")
+		return errors.New("data size exceeds 4096 bytes")
 	}
 
 	id := createMessageId()
