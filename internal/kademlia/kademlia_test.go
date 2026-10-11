@@ -126,6 +126,71 @@ func TestLookupDataFindsRemoteValue(t *testing.T) {
 	}
 }
 
+// lookupTestNode builds a node on the mock network with the given stored data.
+func lookupTestNode(t *testing.T, mock *mockNetwork, id string, addr string, data map[string][]byte) *Kademlia {
+	t.Helper()
+	contact := NewContact(NewKademliaID(id), addr)
+	network, err := initNetwork(mock, contact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	k := &Kademlia{
+		Contact:      contact,
+		RoutingTable: NewRoutingTable(contact),
+		Network:      network,
+		Data:         data,
+	}
+	network.ServerListen(k)
+	return k
+}
+
+func TestLookupDataRejectsTamperedRemoteValue(t *testing.T) {
+	mock := NewMockNetwork()
+	key := NewValueID([]byte("real"))
+	k1 := lookupTestNode(t, mock, "0000000000000000000000000000000000000000000000000000000000000001", "node1", make(map[string][]byte))
+	k2 := lookupTestNode(t, mock, "0000000000000000000000000000000000000000000000000000000000000002", "node2",
+		map[string][]byte{key.String(): []byte("tampered")})
+	k1.RoutingTable.AddContact(k2.Contact)
+
+	result, _, err := k1.LookupData(key.String())
+	if err == nil || result != nil {
+		t.Fatalf("expected tampered value to be discarded, got %q, err %v", result, err)
+	}
+}
+
+func TestLookupDataRejectsTamperedLocalValue(t *testing.T) {
+	mock := NewMockNetwork()
+	key := NewValueID([]byte("real"))
+	k1 := lookupTestNode(t, mock, "0000000000000000000000000000000000000000000000000000000000000001", "node1",
+		map[string][]byte{key.String(): []byte("tampered")})
+
+	result, _, err := k1.LookupData(key.String())
+	if err == nil || result != nil {
+		t.Fatalf("expected tampered local value to be discarded, got %q, err %v", result, err)
+	}
+}
+
+func TestLookupDataSkipsBadNodeAndUsesGoodNode(t *testing.T) {
+	mock := NewMockNetwork()
+	data := []byte("real")
+	key := NewValueID(data)
+	k1 := lookupTestNode(t, mock, "0000000000000000000000000000000000000000000000000000000000000001", "node1", make(map[string][]byte))
+	bad := lookupTestNode(t, mock, "0000000000000000000000000000000000000000000000000000000000000002", "node2",
+		map[string][]byte{key.String(): []byte("tampered")})
+	good := lookupTestNode(t, mock, "0000000000000000000000000000000000000000000000000000000000000003", "node3",
+		map[string][]byte{key.String(): data})
+	k1.RoutingTable.AddContact(bad.Contact)
+	k1.RoutingTable.AddContact(good.Contact)
+
+	result, sender, err := k1.LookupData(key.String())
+	if err != nil {
+		t.Fatalf("LookupData failed: %v", err)
+	}
+	if string(result) != string(data) || sender.Address != "node3" {
+		t.Fatalf("expected %q from node3, got %q from %s", data, result, sender.Address)
+	}
+}
+
 func TestNextUnqueried(t *testing.T) {
 	node1 := NewContact(NewKademliaID(
 		"0000000000000000000000000000000000000000000000000000000000000001",

@@ -3,6 +3,7 @@ package kademlia
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"strconv"
 	"sync"
@@ -100,7 +101,12 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 	value, ok := kademlia.Data[targetID.String()]
 	kademlia.muData.RUnlock()
 	if ok {
-		return value, kademlia.Contact, nil
+		// a client must check K = hash(V) before trusting a value.
+		if NewValueID(value).Equals(targetID) {
+			return value, kademlia.Contact, nil
+		}
+		// Discard the corrupt local value, report it, and fall back to the network lookup.
+		log.Printf("error: local value for key %s does not match its hash, discarding", hash)
 	}
 
 	candidates := &ContactCandidates{}
@@ -119,7 +125,14 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 		}
 		for i, result := range results {
 			if result.found {
-				return result.value, batch[i], nil
+				// Only accept the value if its hash equals the requested key.
+				if NewValueID(result.value).Equals(targetID) {
+					return result.value, batch[i], nil
+				}
+				// Discard the bad value, report it, and keep searching other nodes.
+				log.Printf("error: node %s returned a value that does not match key %s, discarding",
+					batch[i].Address, hash)
+				continue
 			}
 			for _, contact := range result.contacts {
 				MergeClosest(candidates, contact, targetID, shortListSize)
