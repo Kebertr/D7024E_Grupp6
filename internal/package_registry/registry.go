@@ -291,3 +291,61 @@ func (r *registry) CompareVersionRecords(newVers *VersionRecord, oldVers *Versio
 
 	}
 }
+
+func (r *registry) FindRightVersion(domain string, packageUse string, version string, pointer latestPointer) ([]byte, error) {
+	check := pointer
+	for {
+		record, _, err := r.Kademlia.LookupData(hex.EncodeToString(check.versionRecordHash))
+
+		if err != nil {
+			return nil, err
+		}
+
+		var recordProto VersionRecordProto
+
+		errProto := proto.Unmarshal(record, &recordProto)
+
+		if errProto != nil {
+			return nil, errProto
+		}
+
+		if recordProto.DomainName != domain || recordProto.PackageName != packageUse {
+			return nil, errors.New("The domainame and package name need to be the same")
+		}
+
+		prev := &VersionRecord{
+			tag:                   recordProto.Tag,
+			domainName:            recordProto.DomainName,
+			packageName:           recordProto.PackageName,
+			version:               recordProto.Version,
+			blobHash:              recordProto.BlobHash,
+			previousVersionRecord: recordProto.PreviousVersionRecord,
+			sig:                   recordProto.Sig,
+		}
+
+		publicKey, errPublic := r.DNS.lookup(prev.domainName)
+
+		if errPublic != nil {
+			return nil, errPublic
+		}
+
+		errVerify := prev.verifySignature(&publicKey)
+
+		if errVerify != nil {
+			return nil, errVerify
+		}
+
+		if recordProto.Version == version {
+			return check.versionRecordHash, nil
+		}
+
+		//To check if it is the first version
+		zeroHash := make([]byte, sha256.Size)
+
+		if bytes.Equal(recordProto.PreviousVersionRecord, zeroHash) {
+			return nil, errors.New("reached first version")
+		}
+
+		check.versionRecordHash = recordProto.PreviousVersionRecord
+	}
+}
