@@ -21,6 +21,8 @@ func TestPublish(t *testing.T) {
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
 
 	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 	if kadErr != nil {
 		t.Error(kadErr)
 	}
@@ -59,6 +61,8 @@ func TestPublishforce(t *testing.T) {
 	}
 
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 
 	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 	if kadErr != nil {
@@ -106,6 +110,8 @@ func TestPublishManualPrev(t *testing.T) {
 	}
 
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 
 	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 	if kadErr != nil {
@@ -158,6 +164,8 @@ func TestInstall(t *testing.T) {
 	}
 
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 
 	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 	if kadErr != nil {
@@ -219,6 +227,8 @@ func TestInstallSpecificVersion(t *testing.T) {
 	}
 
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 
 	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 	if kadErr != nil {
@@ -332,6 +342,8 @@ func TestVersionPackage(t *testing.T) {
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
 
 	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 	if kadErr != nil {
 		t.Error(kadErr)
 	}
@@ -381,6 +393,8 @@ func TestShowDNS(t *testing.T) {
 	}
 
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 
 	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 	if kadErr != nil {

@@ -21,7 +21,9 @@ func TestLatestPointer(t *testing.T) {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
 
-	node, kadErr := kademlia.NewKademlia(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "127.0.0.1:8080")
+	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 
 	if kadErr != nil {
 		t.Error(kadErr)
@@ -98,7 +100,9 @@ func TestVerifyingWorng(t *testing.T) {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
 
-	node, kadErr := kademlia.NewKademlia(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "127.0.0.1:8080")
+	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 
 	if kadErr != nil {
 		t.Error(kadErr)
@@ -159,7 +163,9 @@ func TestOkRecord(t *testing.T) {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
 
-	node, kadErr := kademlia.NewKademlia(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "127.0.0.1:8080")
+	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 
 	if kadErr != nil {
 		t.Error(kadErr)
@@ -236,7 +242,9 @@ func TestFailVersion(t *testing.T) {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
 
-	node, kadErr := kademlia.NewKademlia(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "127.0.0.1:8080")
+	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 
 	if kadErr != nil {
 		t.Error(kadErr)
@@ -311,9 +319,11 @@ func TestWrongDomain(t *testing.T) {
 	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
-	}
 
-	node, kadErr := kademlia.NewKademlia(kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"), "127.0.0.1:8080")
+	}
+	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 
 	if kadErr != nil {
 		t.Error(kadErr)
@@ -390,10 +400,9 @@ func TestGettingMiddleVersions(t *testing.T) {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
 
-	node, kadErr := kademlia.NewKademlia(
-		kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
-		"127.0.0.1:8080",
-	)
+	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 
 	if kadErr != nil {
 		t.Fatal(kadErr)
@@ -507,10 +516,9 @@ func TestFork(t *testing.T) {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
 
-	node, kadErr := kademlia.NewKademlia(
-		kademlia.NewKademliaID("0000000000000000000000000000000000000000000000000000000000000001"),
-		"127.0.0.1:8080",
-	)
+	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
 
 	if kadErr != nil {
 		t.Fatal(kadErr)

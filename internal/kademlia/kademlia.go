@@ -175,6 +175,48 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 	}
 }
 
+func (kademlia *Kademlia) LookupDataPart2(hash string) ([]byte, Contact, error) {
+	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
+		return nil, kademlia.Contact, errors.New("invalid lookup arguments")
+	}
+
+	targetID := NewKademliaID(hash)
+	if targetID == nil {
+		return nil, kademlia.Contact, errors.New("invalid data hash")
+	}
+
+	kademlia.muData.RLock()
+	value, ok := kademlia.Data[targetID.String()]
+	kademlia.muData.RUnlock()
+	if ok {
+		return value, kademlia.Contact, nil
+	}
+
+	candidates := &ContactCandidates{}
+	candidates.Append(kademlia.RoutingTable.FindClosestContacts(targetID, shortListSize))
+	queried := make(map[string]bool)
+
+	for {
+		batch := NextUnqueried(candidates, queried, alpha)
+		if len(batch) == 0 {
+			return nil, kademlia.Contact, errors.New("data not found")
+		}
+
+		results, err := QueryDataBatch(kademlia.Network, batch, targetID)
+		if err != nil {
+			return nil, kademlia.Contact, err
+		}
+		for i, result := range results {
+			if result.found {
+				return result.value, batch[i], nil
+			}
+			for _, contact := range result.contacts {
+				MergeClosest(candidates, contact, targetID, shortListSize)
+			}
+		}
+	}
+}
+
 func (kademlia *Kademlia) Store(data []byte) error {
 	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
 		return errors.New("invalid store arguments")
