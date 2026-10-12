@@ -51,6 +51,7 @@ func (c *mockConnection) Send(msg Message) error {
 	}
 
 	if rand.Float64() < c.network.packet_loss {
+		c.network.mu.RUnlock()
 		return nil
 	}
 

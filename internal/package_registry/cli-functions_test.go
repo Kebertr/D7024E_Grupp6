@@ -3,6 +3,7 @@ package package_registry
 import (
 	"crypto/rsa"
 	"crypto/sha256"
+	sync "sync"
 	"testing"
 
 	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
@@ -15,7 +16,7 @@ func TestPublish(t *testing.T) {
 
 	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
-		t.Fatal("Failed to add domains to DNS:", err)
+		t.Error("Failed to add domains to DNS:", err)
 	}
 
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
@@ -56,7 +57,7 @@ func TestPublishforce(t *testing.T) {
 
 	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
-		t.Fatal("Failed to add domains to DNS:", err)
+		t.Error("Failed to add domains to DNS:", err)
 	}
 
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
@@ -100,11 +101,11 @@ func TestPublishforce(t *testing.T) {
 func TestPublishManualPrev(t *testing.T) {
 
 	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
-	domains := []string{"example.com"}
+	domains := []string{"example.com", "example1.com"}
 
 	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
-		t.Fatal("Failed to add domains to DNS:", err)
+		t.Error("Failed to add domains to DNS:", err)
 	}
 
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
@@ -146,8 +147,14 @@ func TestPublishManualPrev(t *testing.T) {
 
 	errPublish3 := reg.Publish(domains[0], "package", "3.0.0", file1, false, "1.0.0", *privateKey[domains[0]])
 
-	if errPublish2 != nil {
+	if errPublish3 == nil {
 		t.Error(errPublish3)
+	}
+
+	errPublish4 := reg.Publish(domains[0], "package", "3.0.0", file1, false, "1.0.0", *privateKey[domains[0]])
+
+	if errPublish4 == nil {
+		t.Error(errPublish4)
 	}
 }
 func TestInstall(t *testing.T) {
@@ -157,7 +164,7 @@ func TestInstall(t *testing.T) {
 
 	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
-		t.Fatal("Failed to add domains to DNS:", err)
+		t.Error("Failed to add domains to DNS:", err)
 	}
 
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
@@ -219,7 +226,7 @@ func TestInstallSpecificVersion(t *testing.T) {
 
 	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
-		t.Fatal("Failed to add domains to DNS:", err)
+		t.Error("Failed to add domains to DNS:", err)
 	}
 
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
@@ -331,7 +338,7 @@ func TestVersionPackage(t *testing.T) {
 
 	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
-		t.Fatal("Failed to add domains to DNS:", err)
+		t.Error("Failed to add domains to DNS:", err)
 	}
 
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
@@ -383,7 +390,7 @@ func TestShowDNS(t *testing.T) {
 
 	_, err := AddDomains(dns, domains)
 	if err != nil {
-		t.Fatal("Failed to add domains to DNS:", err)
+		t.Error("Failed to add domains to DNS:", err)
 	}
 
 	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
@@ -416,4 +423,126 @@ func TestShowDNS(t *testing.T) {
 	if dnsShow != dnsLook {
 		t.Error("They should really be equal")
 	}
+}
+func Test4Publish(t *testing.T) {
+	dns := NewMockDNS()
+	domains := []string{"example.com"}
+
+	privateKeys, err := AddDomains(dns, domains)
+	if err != nil {
+		t.Error(err)
+	}
+
+	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, err := kademlia.NewKademlia(id, "127.0.0.1:8080")
+	if err != nil {
+		t.Error(err)
+	}
+	defer node.Close()
+
+	reg := &Registry{
+		Kademlia: node,
+		DNS:      dns,
+	}
+
+	var wg sync.WaitGroup
+
+	versions := []string{
+		"1.0.0",
+		"2.0.0",
+		"3.0.0",
+		"4.0.0",
+	}
+
+	for i := 0; i < len(versions); i++ {
+		wg.Add(1)
+
+		go func(version string) {
+			defer wg.Done()
+
+			data := []byte("another test")
+
+			_ = reg.Publish(
+				"example.com",
+				"test",
+				version,
+				data,
+				false,
+				"",
+				*privateKeys["example.com"],
+			)
+		}(versions[i])
+	}
+
+	wg.Wait()
+}
+
+func Test100Install(t *testing.T) {
+
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	domains := []string{"example.com"}
+
+	privateKey, err := AddDomains(dns, domains)
+	if err != nil {
+		t.Error("Failed to add domains to DNS:", err)
+	}
+
+	id := kademlia.IPPortDerivedNodeID("127.0.0.1", 8080)
+
+	node, kadErr := kademlia.NewKademlia(id, "127.0.0.1:8080")
+
+	if kadErr != nil {
+		t.Error(kadErr)
+	}
+
+	defer node.Close()
+
+	reg := &Registry{
+		Kademlia: node,
+		DNS:      dns,
+	}
+
+	blob := []byte("test-blob-hash")
+
+	errStore := reg.Kademlia.Store(blob)
+
+	if errStore != nil {
+		t.Error(errStore)
+	}
+
+	blobHash := sha256.Sum256(blob)
+
+	instance := &VersionRecord{
+		tag:                   "test",
+		domainName:            domains[0],
+		packageName:           "test-package",
+		version:               "1.0.0",
+		blobHash:              blobHash[:],
+		previousVersionRecord: []byte("test-previous-version-record"),
+		sig:                   []byte("test-signature"),
+	}
+
+	setErr := reg.setLatestPointer(instance, privateKey[domains[0]])
+
+	if setErr != nil {
+		t.Error(setErr)
+	}
+	var wg sync.WaitGroup
+
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			_, _ = reg.Install(
+				"example.com",
+				"test",
+				"latest",
+			)
+		}()
+	}
+
+	wg.Wait()
 }

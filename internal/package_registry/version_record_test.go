@@ -175,3 +175,39 @@ func TestOldRecord(t *testing.T) {
 		t.Fatal("Hashes should be the same")
 	}
 }
+
+func TestCompareVersionsOlder(t *testing.T) {
+	ok, err := compareVersions("1.0.0", "2.0.0")
+
+	if err != nil {
+		t.Error(err)
+	}
+
+	if ok {
+		t.Error("Older version should be less")
+	}
+}
+
+func TestCompareVersionsDifferentLength(t *testing.T) {
+	_, err := compareVersions("1.0", "1.0.0")
+
+	if err == nil {
+		t.Fatal("THey should be the same length")
+	}
+}
+
+func TestCompareVersionsWrongNew(t *testing.T) {
+	_, err := compareVersions("abc.0.0", "1.0.0")
+
+	if err == nil {
+		t.Fatal("The newer is not comparable to the old one")
+	}
+}
+
+func TestCompareVersionsWrongOld(t *testing.T) {
+	_, err := compareVersions("2.0.0", "abc.0.0")
+
+	if err == nil {
+		t.Fatal("The older is not comparable with the new")
+	}
+}
