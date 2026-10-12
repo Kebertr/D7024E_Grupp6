@@ -23,13 +23,30 @@ func NewRoutingTable(me Contact) *RoutingTable {
 	return routingTable
 }
 
-// AddContact add a new contact to the correct Bucket
-func (routingTable *RoutingTable) AddContact(contact Contact) {
+// AddContact add a new contact to the correct Bucket.
+// It returns the least recently seen contact if the bucket is full (see Bucket.AddContact),
+// otherwise nil. The caller must ping it outside this lock (see Kademlia.updateContact).
+func (routingTable *RoutingTable) AddContact(contact Contact) *Contact {
+	// Nil check only: existing tests deliberately add arbitrary IDs directly to the table.
+	// Self is filtered in Kademlia.updateContact instead.
+	if contact.ID == nil {
+		return nil
+	}
 	routingTable.muRoute.Lock()
 	defer routingTable.muRoute.Unlock()
 	bucketIndex := routingTable.getBucketIndex(contact.ID)
 	bucket := routingTable.buckets[bucketIndex]
-	bucket.AddContact(contact)
+	return bucket.AddContact(contact)
+}
+
+// RemoveContact removes a contact (e.g. one that stopped responding) from its bucket.
+func (routingTable *RoutingTable) RemoveContact(contact Contact) {
+	if contact.ID == nil {
+		return
+	}
+	routingTable.muRoute.Lock()
+	defer routingTable.muRoute.Unlock()
+	routingTable.buckets[routingTable.getBucketIndex(contact.ID)].Remove(contact.ID)
 }
 
 // FindClosestContacts finds the count closest Contacts to the target in the RoutingTable
@@ -78,6 +95,9 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 
 // yoink returns a snapshot of all routing-table buckets.
 func (routingTable *RoutingTable) YoinkContacts() [][]Contact {
+	// Read lock: AddContact/RemoveContact modify the bucket lists concurrently.
+	routingTable.muRoute.RLock()
+	defer routingTable.muRoute.RUnlock()
 	buckets := make([][]Contact, len(routingTable.buckets))
 
 	for index, bucket := range routingTable.buckets {

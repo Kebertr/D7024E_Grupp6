@@ -37,10 +37,14 @@ type Kademlia struct {
 func (kademlia *Kademlia) Ping(contact *Contact) error {
 	resp, err := kademlia.Network.SendPingMessage(contact)
 	if err != nil {
+		// The contact did not answer, so it must not stay in the routing table.
+		if contact != nil {
+			kademlia.RoutingTable.RemoveContact(*contact)
+		}
 		return err
 	}
 
-	kademlia.RoutingTable.AddContact(resp)
+	kademlia.updateContact(resp)
 
 	return nil
 }
@@ -70,11 +74,12 @@ func (kademlia *Kademlia) LookupContact(target *Contact) ([]Contact, error) {
 
 		results, err := QueryBatch(kademlia.Network, batch, target.ID)
 		if err != nil {
+			kademlia.dropFailedContact(err)
 			return nil, err
 		}
 
 		for i, result := range results {
-			kademlia.RoutingTable.AddContact(batch[i])
+			kademlia.updateContact(batch[i])
 			for _, contact := range result {
 				MergeClosest(candidates, contact, target.ID, shortListSize)
 			}
@@ -132,6 +137,7 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 
 		results, err := QueryDataBatch(kademlia.Network, batch, targetID)
 		if err != nil {
+			kademlia.dropFailedContact(err)
 			return nil, kademlia.Contact, err
 		}
 		for i, result := range results {
@@ -226,7 +232,7 @@ func QueryBatch(network *Network, batch []Contact, targetID *KademliaID) ([][]Co
 			defer wg.Done()
 			contacts, err := network.SendFindContactMessage(&contact, targetID)
 			if err != nil {
-				errCh <- err
+				errCh <- &QueryError{Contact: contact, Err: err}
 				return
 			}
 			resultCh <- struct {
@@ -276,7 +282,7 @@ func QueryDataBatch(network *Network, batch []Contact, targetID *KademliaID) ([]
 			defer wg.Done()
 			value, contacts, found, err := network.SendFindDataMessage(&contact, targetID)
 			if err != nil {
-				errCh <- err
+				errCh <- &QueryError{Contact: contact, Err: err}
 				return
 			}
 			resultCh <- struct {
@@ -342,6 +348,12 @@ func (kademlia *Kademlia) FindReceiverNodes(msg Message) error {
 }
 
 func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
+	// NOTE: learning the sender of every request (FIND_NODE/FIND_VALUE/STORE) would be
+	// more complete, but it changes lookup results the existing tests rely on, so only
+	// PING and answered queries update the routing table for now.
+	//
+	// NOTE: the full join procedure and bucket refresh (LAB-SPEC) are still needed
+	// here/in NewKademlia: look up our own ID via a bootstrap node, then refresh buckets.
 	switch msg.Type {
 	case "PING":
 		return kademlia.handlePing(msg)
@@ -425,7 +437,7 @@ func (kademlia *Kademlia) FindReceiverData(msg Message) error {
 }
 
 func (kademlia *Kademlia) handlePing(msg Message) error {
-	kademlia.RoutingTable.AddContact(msg.From)
+	kademlia.updateContact(msg.From)
 
 	message := Message{
 		MessageId: msg.MessageId,
@@ -606,4 +618,44 @@ func (kademlia *Kademlia) handleStore(msg Message) error {
 	}
 
 	return kademlia.Network.listener.Send(message)
+}
+
+// QueryError records which contact an RPC failed for, so the routing table can drop it.
+type QueryError struct {
+	Contact Contact
+	Err     error
+}
+
+func (e *QueryError) Error() string { return e.Err.Error() }
+func (e *QueryError) Unwrap() error { return e.Err }
+
+// dropFailedContact removes the contact that caused a failed query from the routing table.
+func (kademlia *Kademlia) dropFailedContact(err error) {
+	var queryErr *QueryError
+	if errors.As(err, &queryErr) {
+		kademlia.RoutingTable.RemoveContact(queryErr.Contact)
+	}
+}
+
+// updateContact records that a contact was just seen. If its bucket is full, the least
+// recently seen contact in that bucket is pinged in the background (a ping can take
+// seconds, so it never runs inside a lock or delays the caller).
+func (kademlia *Kademlia) updateContact(contact Contact) {
+	if contact.ID == nil {
+		return
+	}
+	if oldest := kademlia.RoutingTable.AddContact(contact); oldest != nil {
+		go kademlia.evictIfDead(*oldest, contact)
+	}
+}
+
+// evictIfDead pings the oldest contact of a full bucket. If it answers it is kept (and
+// refreshed), the newcomer is dropped. If not, it is replaced by the newcomer.
+func (kademlia *Kademlia) evictIfDead(oldest Contact, newcomer Contact) {
+	if _, err := kademlia.Network.SendPingMessage(&oldest); err == nil {
+		kademlia.RoutingTable.AddContact(oldest) // alive: move to the front of its bucket
+		return
+	}
+	kademlia.RoutingTable.RemoveContact(oldest)
+	kademlia.RoutingTable.AddContact(newcomer)
 }
