@@ -200,13 +200,6 @@ func runShell() {
 			}
 		case "detach":
 			fmt.Println("Use Ctrl-P, Ctrl-Q to detach.")
-			return
-		case "install":
-			shellInstall(fields[1:])
-		case "publish":
-			shellPublish(fields[1:])
-		case "cat":
-			shellCat(fields[1:])
 
 		default:
 			fmt.Println("Unknown command. Type 'help' for available commands.")
