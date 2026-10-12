@@ -2,6 +2,10 @@ package kademlia
 
 import (
 	"errors"
+	"fmt"
+	"log"
+	"net"
+	"strconv"
 	"sync"
 )
 
@@ -97,7 +101,12 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 	value, ok := kademlia.Data[targetID.String()]
 	kademlia.muData.RUnlock()
 	if ok {
-		return value, kademlia.Contact, nil
+		// a client must check K = hash(V) before trusting a value.
+		if NewValueID(value).Equals(targetID) {
+			return value, kademlia.Contact, nil
+		}
+		// Discard the corrupt local value, report it, and fall back to the network lookup.
+		log.Printf("error: local value for key %s does not match its hash, discarding", hash)
 	}
 
 	candidates := &ContactCandidates{}
@@ -116,7 +125,14 @@ func (kademlia *Kademlia) LookupData(hash string) ([]byte, Contact, error) {
 		}
 		for i, result := range results {
 			if result.found {
-				return result.value, batch[i], nil
+				// Only accept the value if its hash equals the requested key.
+				if NewValueID(result.value).Equals(targetID) {
+					return result.value, batch[i], nil
+				}
+				// Discard the bad value, report it, and keep searching other nodes.
+				log.Printf("error: node %s returned a value that does not match key %s, discarding",
+					batch[i].Address, hash)
+				continue
 			}
 			for _, contact := range result.contacts {
 				MergeClosest(candidates, contact, targetID, shortListSize)
@@ -460,6 +476,10 @@ func (kademlia *Kademlia) handlePing(msg Message) error {
 }
 
 func NewKademlia(id *KademliaID, address string) (*Kademlia, error) {
+	if err := validateNodeID(id, address); err != nil {
+		return nil, err
+	}
+
 	contact := NewContact(id, address)
 
 	network, err := initNetwork(NewRealNetwork(), contact)
@@ -477,6 +497,34 @@ func NewKademlia(id *KademliaID, address string) (*Kademlia, error) {
 	network.ServerListen(node)
 
 	return node, nil
+}
+
+func validateNodeID(id *KademliaID, address string) error {
+	// SplitHostPort safely separates the host and port, including bracketed IPv6 addresses.
+	host, portString, err := net.SplitHostPort(address)
+	if err != nil {
+		return fmt.Errorf("invalid node address %q: %w", address, err)
+	}
+
+	port, err := strconv.Atoi(portString)
+	if err != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("node address must use a port between 1 and 65535")
+	}
+
+	// ParseIP rejects hostnames and normalizes the IP before checking its derived ID.
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return fmt.Errorf("node address host %q must be an IP address", host)
+	}
+
+	// Port zero is rejected because the OS-assigned port would differ from the
+	// port used to derive the node ID.
+	expectedID := IPPortDerivedNodeID(ip.String(), port)
+	if id == nil || !id.Equals(expectedID) {
+		return errors.New("node ID must be the SHA-256 hash of the node IP and port")
+	}
+
+	return nil
 }
 
 func (kademlia *Kademlia) Close() error {

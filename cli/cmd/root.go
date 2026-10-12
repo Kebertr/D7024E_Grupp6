@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -72,7 +73,6 @@ func init() {
 
 	var startIp string
 	var startPort int
-	var startId string
 
 	/*
 		Creates and runs a local kademlia node
@@ -82,9 +82,23 @@ func init() {
 		Use:   "start",
 		Short: "Start a node and open the interactive shell",
 		Run: func(cmd *cobra.Command, args []string) {
-			id := kademlia.NewKademliaID(startId)
+			// Parse the input as an IP address; reject hostnames and invalid IP text.
+			ip := net.ParseIP(startIp)
+			if ip == nil {
+				fmt.Println("Invalid IP address:", startIp)
+				return
+			}
+			if startPort < 1 || startPort > 65535 {
+				fmt.Println("Port must be between 1 and 65535")
+				return
+			}
+
+			// Derive identity from the canonical IP and the configured listening port.
+			id := kademlia.IPPortDerivedNodeID(ip.String(), startPort)
 			var err error
-			node, err = kademlia.NewKademlia(id, fmt.Sprintf("%s:%d", startIp, startPort))
+			// JoinHostPort formats the address correctly for both IPv4 and IPv6.
+			address := net.JoinHostPort(ip.String(), strconv.Itoa(startPort))
+			node, err = kademlia.NewKademlia(id, address)
 			if err != nil {
 				fmt.Println("Unable to start node:", err)
 				return
@@ -134,8 +148,8 @@ func init() {
 		},
 	}
 	startCmd.Flags().StringVarP(&startIp, "ip", "i", "127.0.0.1", "IP address of this node")
-	startCmd.Flags().IntVarP(&startPort, "port", "p", 0, "Port number of this node")
-	startCmd.Flags().StringVar(&startId, "id", kademlia.NewRandomKademliaID().String(), "Kademlia ID of this node")
+	// Use a fixed default because port zero is assigned only after binding.
+	startCmd.Flags().IntVarP(&startPort, "port", "p", 8000, "Port number of this node")
 	rootCmd.AddCommand(startCmd)
 }
 
