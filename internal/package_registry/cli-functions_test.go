@@ -10,10 +10,10 @@ import (
 
 func TestPublish(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -26,14 +26,14 @@ func TestPublish(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
 
 	file := []byte("first-version-data")
 
-	errPublish := reg.publish(domains[0], "package", "1.0.0", file, false, "", *privateKey[domains[0]])
+	errPublish := reg.Publish(domains[0], "package", "1.0.0", file, false, "", *privateKey[domains[0]])
 
 	if errPublish != nil {
 		t.Error(errPublish)
@@ -49,10 +49,10 @@ func TestPublish(t *testing.T) {
 
 func TestPublishforce(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -65,14 +65,14 @@ func TestPublishforce(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
 
 	file := []byte("first-version-data")
 
-	errPublish := reg.publish(domains[0], "package", "1.0.0", file, false, "", *privateKey[domains[0]])
+	errPublish := reg.Publish(domains[0], "package", "1.0.0", file, false, "", *privateKey[domains[0]])
 
 	if errPublish != nil {
 		t.Error(errPublish)
@@ -80,13 +80,13 @@ func TestPublishforce(t *testing.T) {
 
 	file1 := []byte("first-version-data2")
 
-	errPublish1 := reg.publish(domains[0], "package", "1.0.0", file1, false, "", *privateKey[domains[0]])
+	errPublish1 := reg.Publish(domains[0], "package", "1.0.0", file1, false, "", *privateKey[domains[0]])
 
 	if errPublish1 == nil {
 		t.Error("This should give error since force is falsed")
 	}
 
-	errPublish2 := reg.publish(domains[0], "package", "1.0.0", file1, true, "", *privateKey[domains[0]])
+	errPublish2 := reg.Publish(domains[0], "package", "1.0.0", file1, true, "", *privateKey[domains[0]])
 
 	if errPublish2 != nil {
 		t.Error(errPublish2)
@@ -95,10 +95,10 @@ func TestPublishforce(t *testing.T) {
 
 func TestPublishManualPrev(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -111,14 +111,14 @@ func TestPublishManualPrev(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
 
 	file := []byte("first-version-data")
 
-	errPublish := reg.publish(domains[0], "package", "1.0.0", file, false, "", *privateKey[domains[0]])
+	errPublish := reg.Publish(domains[0], "package", "1.0.0", file, false, "", *privateKey[domains[0]])
 
 	if errPublish != nil {
 		t.Error(errPublish)
@@ -126,19 +126,19 @@ func TestPublishManualPrev(t *testing.T) {
 
 	file1 := []byte("first-version-data2")
 
-	errPublish1 := reg.publish(domains[0], "package", "2.0.0", file1, false, "", *privateKey[domains[0]])
+	errPublish1 := reg.Publish(domains[0], "package", "2.0.0", file1, false, "", *privateKey[domains[0]])
 
 	if errPublish1 != nil {
 		t.Error(errPublish1)
 	}
 
-	errPublish2 := reg.publish(domains[0], "package", "3.0.0", file1, false, "", *privateKey[domains[0]])
+	errPublish2 := reg.Publish(domains[0], "package", "3.0.0", file1, false, "", *privateKey[domains[0]])
 
 	if errPublish2 != nil {
 		t.Error(errPublish2)
 	}
 
-	errPublish3 := reg.publish(domains[0], "package", "3.0.0", file1, false, "1.0.0", *privateKey[domains[0]])
+	errPublish3 := reg.Publish(domains[0], "package", "3.0.0", file1, false, "1.0.0", *privateKey[domains[0]])
 
 	if errPublish2 != nil {
 		t.Error(errPublish3)
@@ -146,10 +146,10 @@ func TestPublishManualPrev(t *testing.T) {
 }
 func TestInstall(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -162,7 +162,7 @@ func TestInstall(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
@@ -193,7 +193,7 @@ func TestInstall(t *testing.T) {
 		t.Error(setErr)
 	}
 
-	res, errInstall := reg.install(domains[0], instance.packageName, "latest")
+	res, errInstall := reg.Install(domains[0], instance.packageName, "latest")
 
 	if errInstall != nil {
 		t.Error(errInstall)
@@ -206,10 +206,10 @@ func TestInstall(t *testing.T) {
 
 func TestInstallSpecificVersion(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -222,7 +222,7 @@ func TestInstallSpecificVersion(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
@@ -293,7 +293,7 @@ func TestInstallSpecificVersion(t *testing.T) {
 	instance3.sign(privateKey[domains[0]])
 	reg.setLatestPointer(instance3, privateKey[domains[0]])
 
-	res, errInstall := reg.install(domains[0], instance3.packageName, "1.0.0")
+	res, errInstall := reg.Install(domains[0], instance3.packageName, "1.0.0")
 
 	if errInstall != nil {
 		t.Error(errInstall)
@@ -303,7 +303,7 @@ func TestInstallSpecificVersion(t *testing.T) {
 		t.Error("This should be equal to what I wrote u there")
 	}
 
-	res2, errInstall2 := reg.install(domains[0], instance3.packageName, "2.0.0")
+	res2, errInstall2 := reg.Install(domains[0], instance3.packageName, "2.0.0")
 
 	if errInstall2 != nil {
 		t.Error(errInstall2)
@@ -316,10 +316,10 @@ func TestInstallSpecificVersion(t *testing.T) {
 
 func TestVersionPackage(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -332,7 +332,7 @@ func TestVersionPackage(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
@@ -353,7 +353,7 @@ func TestVersionPackage(t *testing.T) {
 		t.Error(setErr)
 	}
 
-	version, errVersion := reg.showVersionPackage(domains[0], instance.packageName)
+	version, errVersion := reg.ShowVersionPackage(domains[0], instance.packageName)
 
 	if errVersion != nil {
 		t.Error(errVersion)
@@ -366,10 +366,10 @@ func TestVersionPackage(t *testing.T) {
 
 func TestShowDNS(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	_, err := addDomains(dns, domains)
+	_, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -382,12 +382,12 @@ func TestShowDNS(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
 
-	dnsShow, errdns := reg.showDNS(domains[0])
+	dnsShow, errdns := reg.ShowDNS(domains[0])
 
 	if errdns != nil {
 		t.Error(errdns)

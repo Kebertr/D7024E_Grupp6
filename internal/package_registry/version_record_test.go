@@ -6,7 +6,7 @@ import (
 )
 
 func TestSignAndValidation(t *testing.T) {
-	privateKey, publicKey, err := generateKeys()
+	privateKey, publicKey, err := GenerateKeys()
 	if err != nil {
 		t.Fatalf("Failed to generate keys: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestSignAndValidation(t *testing.T) {
 }
 
 func TestFailPublickey(t *testing.T) {
-	privateKey, _, err := generateKeys()
+	privateKey, _, err := GenerateKeys()
 	if err != nil {
 		t.Fatalf("Failed to generate keys: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestFailPublickey(t *testing.T) {
 		t.Fatal("Failed to sign version record:", errsign)
 	}
 
-	_, fakePublicKey, err := generateKeys()
+	_, fakePublicKey, err := GenerateKeys()
 	if err != nil {
 		t.Fatalf("Failed to generate fake public key: %v", err)
 	}
@@ -61,13 +61,13 @@ func TestFailPublickey(t *testing.T) {
 }
 
 func TestFailprivateKey(t *testing.T) {
-	_, publicKey, err := generateKeys()
+	_, publicKey, err := GenerateKeys()
 
 	if err != nil {
 		t.Fatal("Failed to generate keys", err)
 	}
 
-	fakePrivateKey, _, err := generateKeys()
+	fakePrivateKey, _, err := GenerateKeys()
 
 	instance := &VersionRecord{
 		tag:         "test",
@@ -88,7 +88,7 @@ func TestFailprivateKey(t *testing.T) {
 }
 
 func TestFailChangeTag(t *testing.T) {
-	privateKey, publicKey, err := generateKeys()
+	privateKey, publicKey, err := GenerateKeys()
 
 	if err != nil {
 		t.Fatal("Failed to generate keys", err)

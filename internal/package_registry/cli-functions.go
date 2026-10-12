@@ -6,11 +6,10 @@ import (
 	"encoding/hex"
 	"errors"
 
-	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
 	"google.golang.org/protobuf/proto"
 )
 
-func (r *registry) publish(domain string, packageUse string, version string, file []byte, force bool, previousVersion string, privateKey rsa.PrivateKey) error {
+func (r *Registry) Publish(domain string, packageUse string, version string, file []byte, force bool, previousVersion string, privateKey rsa.PrivateKey) error {
 	errStore := r.Kademlia.Store(file)
 
 	if errStore != nil {
@@ -104,7 +103,7 @@ func (r *registry) publish(domain string, packageUse string, version string, fil
 	return nil
 }
 
-func (r *registry) install(domain string, packageUse string, version string) ([]byte, error) {
+func (r *Registry) Install(domain string, packageUse string, version string) ([]byte, error) {
 	pointer, err := r.getLatestPointer(domain, packageUse)
 	if err != nil {
 		return []byte{}, err
@@ -118,7 +117,7 @@ func (r *registry) install(domain string, packageUse string, version string) ([]
 		previousAns, errPrev := r.FindRightVersion(domain, packageUse, version, *pointer)
 
 		if errPrev != nil {
-			return nil, errors.New("Problem with going down and finding the version")
+			return nil, errPrev
 		}
 
 		previous = previousAns
@@ -151,7 +150,7 @@ func (r *registry) install(domain string, packageUse string, version string) ([]
 	return res, nil
 }
 
-func (r *registry) showVersionPackage(domain string, packageUse string) (string, error) {
+func (r *Registry) ShowVersionPackage(domain string, packageUse string) (string, error) {
 	res, err := r.getLatestPointer(domain, packageUse)
 	if err != nil {
 		return "", err
@@ -161,33 +160,6 @@ func (r *registry) showVersionPackage(domain string, packageUse string) (string,
 
 }
 
-func (r *registry) showDNS(domain string) (rsa.PublicKey, error) {
+func (r *Registry) ShowDNS(domain string) (rsa.PublicKey, error) {
 	return r.DNS.lookup(domain)
-}
-
-// Wrappers
-// Tried to change publicity to public did not work beacuse go is shit
-
-func Install(node *kademlia.Kademlia, dns DNS, domain, packageUse, version string) ([]byte, error) {
-	reg := &registry{
-		Kademlia: node,
-		DNS:      dns,
-	}
-	return reg.install(domain, packageUse, version)
-}
-
-func ShowVersionPackage(node *kademlia.Kademlia, dns DNS, domain, packageUse string) (string, error) {
-	reg := &registry{
-		Kademlia: node,
-		DNS:      dns,
-	}
-	return reg.showVersionPackage(domain, packageUse)
-}
-
-func ShowDNS(node *kademlia.Kademlia, dns DNS, domain string) (rsa.PublicKey, error) {
-	reg := &registry{
-		Kademlia: node,
-		DNS:      dns,
-	}
-	return reg.showDNS(domain)
 }

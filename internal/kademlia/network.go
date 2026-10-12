@@ -196,6 +196,50 @@ func (network *Network) SendStoreMessage(contact *Contact, target *KademliaID, d
 	}
 }
 
+func (network *Network) SendStorePublishMessage(contact *Contact, target *KademliaID, data []byte) error {
+	if contact == nil {
+		return errors.New("contact is required")
+	}
+
+	if len(data) > limitData {
+		return errors.New("data size exceeds 1024 bytes")
+	}
+
+	id := createMessageId()
+
+	respChannel := make(chan Message, 1)
+	network.recmu.Lock()
+	network.receive[id] = respChannel
+	network.recmu.Unlock()
+
+	msg := Message{
+		MessageId: id,
+		From:      network.contact,
+		To:        contact.Address,
+		Type:      "STORE_PUBLISH",
+		Target:    target,
+		Value:     data,
+	}
+
+	err := network.listener.Send(msg)
+	if err != nil {
+		return err
+	}
+
+	select {
+	case response := <-respChannel:
+		if response.MessageId != id || response.Type != "STORE_RESPONSE" {
+			if response.MessageId == id && response.Type == "STORE_ERROR" {
+				return errors.New("store rejected by receiver")
+			}
+			return errors.New("invalid store response")
+		}
+		return nil
+	case <-time.After(2 * time.Second):
+		return errors.New("Stored timed out")
+	}
+}
+
 // This is for receiving each message and send it to the right function
 func (network *Network) ServerListen(kademlia *Kademlia) {
 	go func() {

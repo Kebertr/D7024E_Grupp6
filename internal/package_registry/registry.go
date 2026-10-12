@@ -15,12 +15,12 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type registry struct {
+type Registry struct {
 	Kademlia *kademlia.Kademlia
 	DNS      DNS
 }
 
-func (r *registry) getLatestPointer(domain string, packageName string) (*latestPointer, error) {
+func (r *Registry) getLatestPointer(domain string, packageName string) (*latestPointer, error) {
 	fullName := domain + ":" + packageName + ":latest"
 
 	key := sha256.Sum256([]byte(fullName))
@@ -52,7 +52,7 @@ func (r *registry) getLatestPointer(domain string, packageName string) (*latestP
 
 }
 
-func (r *registry) setLatestPointer(vers *VersionRecord, privateKey *rsa.PrivateKey) error {
+func (r *Registry) setLatestPointer(vers *VersionRecord, privateKey *rsa.PrivateKey) error {
 
 	vsRecord := &VersionRecordProto{
 		Tag:                   vers.tag,
@@ -189,7 +189,7 @@ func compareVersions(newVersion string, oldVersion string) (bool, error) {
 	return false, nil
 }
 
-func (r *registry) CompareVersionRecords(newVers *VersionRecord, oldVers *VersionRecord) error {
+func (r *Registry) CompareVersionRecords(newVers *VersionRecord, oldVers *VersionRecord) error {
 
 	if newVers.domainName != oldVers.domainName || newVers.packageName != oldVers.packageName {
 		return errors.New("The domainame and package name need to be the same")
@@ -292,7 +292,7 @@ func (r *registry) CompareVersionRecords(newVers *VersionRecord, oldVers *Versio
 	}
 }
 
-func (r *registry) FindRightVersion(domain string, packageUse string, version string, pointer latestPointer) ([]byte, error) {
+func (r *Registry) FindRightVersion(domain string, packageUse string, version string, pointer latestPointer) ([]byte, error) {
 	check := pointer
 	for {
 		record, _, err := r.Kademlia.LookupData(hex.EncodeToString(check.versionRecordHash))

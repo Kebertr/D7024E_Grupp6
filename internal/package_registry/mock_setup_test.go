@@ -6,7 +6,7 @@ import (
 )
 
 func TestGenerateKeys(t *testing.T) {
-	privateKey, publicKey, err := generateKeys()
+	privateKey, publicKey, err := GenerateKeys()
 	if err != nil {
 		t.Fatalf("Failed to generate keys: %v", err)
 	}
@@ -18,9 +18,9 @@ func TestGenerateKeys(t *testing.T) {
 }
 
 func TestAddDomainsToDNS(t *testing.T) {
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com", "test.com", "mydomain.org"}
-	privateKeys, err := addDomains(dns, domains)
+	privateKeys, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}

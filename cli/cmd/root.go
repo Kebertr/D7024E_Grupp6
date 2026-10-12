@@ -5,6 +5,9 @@ package cmd
 
 import (
 	"bufio" // buffered IO package for go
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"strconv"
@@ -17,6 +20,10 @@ import (
 )
 
 var node *kademlia.Kademlia
+var reg *package_registry.Registry
+var dns *package_registry.MockDNS
+var privateKeys = make(map[string]*rsa.PrivateKey)
+var publicKeys = make(map[string]rsa.PublicKey)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -82,6 +89,35 @@ func init() {
 				fmt.Println("Unable to start node:", err)
 				return
 			}
+			dns = package_registry.NewMockDNS()
+
+			domains := []string{
+				"example1.com",
+				"example2.com",
+				"example3.com",
+			}
+
+			privateKeys[domains[0]] = loadPrivateKey("keys/example1.com-private.pem")
+
+			dns.AddDomainCli(domains[0], *loadPublicKey("keys/example1.com-public.pem"))
+
+			privateKeys[domains[1]] = loadPrivateKey("keys/example2.com-private.pem")
+
+			dns.AddDomainCli(domains[1], *loadPublicKey("keys/example2.com-public.pem"))
+
+			privateKeys[domains[2]] = loadPrivateKey("keys/example3.com-private.pem")
+
+			dns.AddDomainCli(domains[2], *loadPublicKey("keys/example3.com-public.pem"))
+
+			if err != nil {
+				fmt.Println("Unable to create mock DNS:", err)
+				return
+			}
+			reg = &package_registry.Registry{
+				Kademlia: node,
+				DNS:      dns,
+			}
+
 			defer func() {
 				if err := node.Close(); err != nil {
 					fmt.Println("Unable to close node:", err)
@@ -125,7 +161,7 @@ func runShell() {
 		case "exit", "quit", "q":
 			return
 		case "help":
-			fmt.Println("ping <ip> <port> | put <value> | get <key> <filename>| exit | detach")
+			fmt.Println("ping <ip> <port> | put <value> | get <key> <filename>| exit | detach || show rt|ds|dns DOMAIN|version DOMAIN:PACKAGE | publish [--force] [--prev=PREVIOUS-VERSION] DOMAIN:PACKAGE:VERSION FILENAME | install DOMAIN:PACKAGE:VERSION")
 		case "ping":
 			shellPing(fields[1:])
 		case "put":
@@ -135,20 +171,16 @@ func runShell() {
 		case "get":
 			shellGet(fields[0:])
 		case "show":
-			if len(fields) != 2 {
-				fmt.Println("Usage: show rt|ds")
-				continue
-			}
 
 			switch fields[1] {
 			case "rt":
 				shellShowRoutingTable()
 			case "ds":
 				shellShowDataStore()
-			case "dns DOMAIN":
+			case "dns":
 				shellShowDNS(fields[2])
-			case "version DOMAIN:PACKAGE":
-				shellShowVersionPackage()
+			case "version":
+				shellShowVersionPackage(fields[2])
 			default:
 				fmt.Println("Usage: show rt|ds|dns DOMAIN|version DOMAIN:PACKAGE")
 			}
@@ -157,6 +189,11 @@ func runShell() {
 			return
 		case "install":
 			shellInstall(fields[1:])
+		case "publish":
+			shellPublish(fields[1:])
+		case "cat":
+			shellCat(fields[1:])
+
 		default:
 			fmt.Println("Unknown command. Type 'help' for available commands.")
 		}
@@ -285,13 +322,74 @@ func shellShowDataStore() {
 	}
 }
 
+func shellPublish(args []string) {
+	force := false
+	previous := ""
+	filename := ""
+	domain := ""
+	packageName := ""
+	version := ""
+
+	switch len(args) {
+	case 2:
+		parts := strings.Split(args[0], ":")
+		domain = parts[0]
+		packageName = parts[1]
+		version = parts[2]
+		filename = args[1]
+	default:
+		var domainStruct string
+		for _, arg := range args {
+			if arg == "--force" {
+				force = true
+				continue
+			}
+
+			if strings.HasPrefix(arg, "--prev=") {
+				previous = strings.TrimPrefix(arg, "--prev=")
+				continue
+			}
+
+			if strings.Contains(arg, ":") {
+				domainStruct = arg
+				continue
+			}
+
+			filename = arg
+		}
+		parts := strings.Split(domainStruct, ":")
+		domain = parts[0]
+		packageName = parts[1]
+		version = parts[2]
+	}
+
+	file, err := os.ReadFile(filename)
+	if err != nil {
+		fmt.Println("Could not read file:", err)
+		return
+	}
+
+	privateKey, ok := privateKeys[domain]
+	if !ok {
+		fmt.Println("You do not own domain:", domain)
+		return
+	}
+
+	errPublish := reg.Publish(domain, packageName, version, file, force, previous, *privateKey)
+
+	if errPublish != nil {
+		fmt.Println(errPublish)
+	}
+
+}
+
 func shellInstall(args []string) {
 	parts := strings.Split(args[0], ":")
 	domain := parts[0]
 	pkg := parts[1]
 	version := parts[2]
 
-	data, err := package_registry.Install(node, nil, domain, pkg, version)
+	data, err := reg.Install(domain, pkg, version)
 	if err != nil {
 		fmt.Println("Install failed:", err)
 		return
@@ -311,7 +409,7 @@ func shellShowDNS(domain string) {
 		return
 	}
 
-	key, err := package_registry.ShowDNS(node, nil, domain)
+	key, err := reg.ShowDNS(domain)
 	if err != nil {
 		fmt.Println("DNS lookup failed:", err)
 		return
@@ -319,17 +417,22 @@ func shellShowDNS(domain string) {
 
 	fmt.Printf("DNS for %s: %v\n", domain, key)
 }
-func shellShowVersionPackage() {
+func shellShowVersionPackage(domainPackage string) {
 	if node == nil {
 		fmt.Println("Start a node before showing the version of a package")
 		return
 	}
 
-	parts := strings.Split(os.Args[3], ":")
+	parts := strings.Split(domainPackage, ":")
+	if len(parts) != 2 {
+		fmt.Println("Usage: show version DOMAIN:PACKAGE")
+		return
+	}
+
 	domain := parts[0]
 	pkg := parts[1]
 
-	version, err := package_registry.ShowVersionPackage(node, nil, domain, pkg)
+	version, err := reg.ShowVersionPackage(domain, pkg)
 	if err != nil {
 		fmt.Println("Version lookup failed:", err)
 		return
@@ -337,4 +440,62 @@ func shellShowVersionPackage() {
 
 	fmt.Printf("Version for %s:%s: %s\n", domain, pkg, version)
 
+}
+
+func shellCat(args []string) {
+	if len(args) != 1 {
+		fmt.Println("Usage: cat FILENAME")
+		return
+	}
+
+	data, err := os.ReadFile(args[0])
+	if err != nil {
+		fmt.Println("Read failed:", err)
+		return
+	}
+
+	fmt.Println(string(data))
+}
+
+func loadPrivateKey(path string) *rsa.PrivateKey {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
+
+	decoded, _ := pem.Decode(data)
+	if decoded == nil {
+		panic("invalid PEM")
+	}
+
+	key, err := x509.ParsePKCS8PrivateKey(decoded.Bytes)
+	if err != nil {
+		panic(err)
+	}
+
+	privateKey, ok := key.(*rsa.PrivateKey)
+	if !ok {
+		panic("not an RSA private key")
+	}
+
+	return privateKey
+}
+
+func loadPublicKey(path string) *rsa.PublicKey {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
+
+	decoded, _ := pem.Decode(data)
+	if decoded == nil {
+		panic("invalid PEM")
+	}
+
+	key, err := x509.ParsePKIXPublicKey(decoded.Bytes)
+	if err != nil {
+		panic(err)
+	}
+
+	return key.(*rsa.PublicKey)
 }

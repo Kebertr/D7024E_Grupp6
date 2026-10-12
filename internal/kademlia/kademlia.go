@@ -198,7 +198,7 @@ func (kademlia *Kademlia) StorePart2(key []byte, data []byte) error {
 			kademlia.muData.Unlock()
 			continue
 		}
-		if err := kademlia.Network.SendStoreMessage(&contact, targetID, data); err != nil {
+		if err := kademlia.Network.SendStorePublishMessage(&contact, targetID, data); err != nil {
 			storeErr = err
 		}
 	}
@@ -365,9 +365,17 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 	case "FIND_VALUE":
 		return kademlia.FindReceiverData(msg)
 
-	case "STORE":
+	case "STORE", "STORE_PUBLISH":
+		// reject mappings where the key isn't the hash of the value (K = hash(V))
+		if !msg.Target.Equals(NewValueID(msg.Value)) && msg.Type == "STORE" {
+			return kademlia.Network.listener.Send(Message{
+				MessageId: msg.MessageId,
+				From:      kademlia.Contact,
+				To:        msg.From.Address,
+				Type:      "STORE_ERROR",
+			})
+		}
 		return kademlia.handleStore(msg)
-
 	case "PING_RETURN":
 		kademlia.Network.recmu.Lock()
 		respChannel := kademlia.Network.receive[msg.MessageId]
@@ -481,15 +489,6 @@ func (kademlia *Kademlia) Close() error {
 
 func (kademlia *Kademlia) handleStore(msg Message) error {
 	if msg.Target == nil {
-		return kademlia.Network.listener.Send(Message{
-			MessageId: msg.MessageId,
-			From:      kademlia.Contact,
-			To:        msg.From.Address,
-			Type:      "STORE_ERROR",
-		})
-	}
-	// reject mappings where the key isn't the hash of the value (K = hash(V))
-	if !msg.Target.Equals(NewValueID(msg.Value)) {
 		return kademlia.Network.listener.Send(Message{
 			MessageId: msg.MessageId,
 			From:      kademlia.Contact,

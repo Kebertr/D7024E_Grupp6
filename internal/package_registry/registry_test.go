@@ -13,10 +13,10 @@ import (
 
 func TestLatestPointer(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -29,7 +29,7 @@ func TestLatestPointer(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
@@ -90,10 +90,10 @@ func TestLatestPointer(t *testing.T) {
 }
 
 func TestVerifyingWorng(t *testing.T) {
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -106,7 +106,7 @@ func TestVerifyingWorng(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
@@ -151,10 +151,10 @@ func TestVerifyingWorng(t *testing.T) {
 
 func TestOkRecord(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -167,7 +167,7 @@ func TestOkRecord(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
@@ -228,10 +228,10 @@ func TestOkRecord(t *testing.T) {
 
 func TestFailVersion(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -244,7 +244,7 @@ func TestFailVersion(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
@@ -305,10 +305,10 @@ func TestFailVersion(t *testing.T) {
 
 func TestWrongDomain(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com", "test.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -321,7 +321,7 @@ func TestWrongDomain(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
@@ -382,10 +382,10 @@ func TestWrongDomain(t *testing.T) {
 
 func TestGettingMiddleVersions(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -401,7 +401,7 @@ func TestGettingMiddleVersions(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
@@ -499,10 +499,10 @@ func TestGettingMiddleVersions(t *testing.T) {
 
 func TestFork(t *testing.T) {
 
-	dns := &mockDNS{lookupResult: make(map[string]rsa.PublicKey)}
+	dns := &MockDNS{lookupResult: make(map[string]rsa.PublicKey)}
 	domains := []string{"example.com"}
 
-	privateKey, err := addDomains(dns, domains)
+	privateKey, err := AddDomains(dns, domains)
 	if err != nil {
 		t.Fatal("Failed to add domains to DNS:", err)
 	}
@@ -518,7 +518,7 @@ func TestFork(t *testing.T) {
 
 	defer node.Close()
 
-	reg := &registry{
+	reg := &Registry{
 		Kademlia: node,
 		DNS:      dns,
 	}
