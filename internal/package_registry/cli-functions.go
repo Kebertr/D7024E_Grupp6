@@ -110,11 +110,16 @@ func (r *registry) install(domain string, packageUse string, version string) ([]
 		return []byte{}, err
 	}
 
+	previous, errPrev := r.FindRightVersion(domain, packageUse, version, *pointer)
+
+	if errPrev != nil {
+		return nil, errors.New("Problem with going down and finding the version")
+	}
 	recordBytes, _, err := r.Kademlia.LookupData(
-		hex.EncodeToString(pointer.versionRecordHash),
+		hex.EncodeToString(previous),
 	)
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
 	var recordProto VersionRecordProto
@@ -135,7 +140,6 @@ func (r *registry) install(domain string, packageUse string, version string) ([]
 	}
 
 	return res, nil
-
 }
 
 func (r *registry) showVersionPackage(domain string, packageUse string) (string, error) {
