@@ -25,7 +25,7 @@ func (r *Registry) getLatestPointer(domain string, packageName string) (*latestP
 
 	key := sha256.Sum256([]byte(fullName))
 
-	stored, _, err := r.Kademlia.LookupData(hex.EncodeToString(key[:]))
+	stored, _, err := r.Kademlia.LookupDataPart2(hex.EncodeToString(key[:]))
 
 	if err != nil {
 		return nil, err
