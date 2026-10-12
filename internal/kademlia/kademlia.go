@@ -165,6 +165,46 @@ func (kademlia *Kademlia) Store(data []byte) error {
 	return storeErr
 }
 
+func (kademlia *Kademlia) StorePart2(key []byte, data []byte) error {
+	if kademlia == nil || kademlia.RoutingTable == nil || kademlia.Network == nil {
+		return errors.New("invalid store arguments")
+	}
+
+	if len(data) > limitData {
+		return errors.New("data exceeds maximum size limit")
+	}
+
+	targetID := NewValueID(key)
+	target := Contact{ID: targetID}
+	contacts, err := kademlia.LookupContact(&target)
+	if err != nil {
+		return err
+	}
+
+	// The node performing the lookup can itself be one of the k closest nodes.
+	candidates := &ContactCandidates{}
+	candidates.Append(contacts)
+	MergeClosest(candidates, kademlia.Contact, targetID, shortListSize)
+
+	var storeErr error
+	for _, contact := range candidates.GetContacts(candidates.Len()) {
+		if contact.ID.Equals(kademlia.Contact.ID) {
+			kademlia.muData.Lock()
+
+			if kademlia.Data == nil {
+				kademlia.Data = make(map[string][]byte)
+			}
+			kademlia.Data[targetID.String()] = data
+			kademlia.muData.Unlock()
+			continue
+		}
+		if err := kademlia.Network.SendStorePublishMessage(&contact, targetID, data); err != nil {
+			storeErr = err
+		}
+	}
+	return storeErr
+}
+
 // HELPER FUNCTIONS
 // ------------------
 // returns the next batch of unqueried contacts from the candidates list, up to the specified alpha value.
@@ -325,9 +365,17 @@ func (kademlia *Kademlia) handleIncomingMessage(msg Message) error {
 	case "FIND_VALUE":
 		return kademlia.FindReceiverData(msg)
 
-	case "STORE":
+	case "STORE", "STORE_PUBLISH":
+		// reject mappings where the key isn't the hash of the value (K = hash(V))
+		if !msg.Target.Equals(NewValueID(msg.Value)) && msg.Type == "STORE" {
+			return kademlia.Network.listener.Send(Message{
+				MessageId: msg.MessageId,
+				From:      kademlia.Contact,
+				To:        msg.From.Address,
+				Type:      "STORE_ERROR",
+			})
+		}
 		return kademlia.handleStore(msg)
-
 	case "PING_RETURN":
 		kademlia.Network.recmu.Lock()
 		respChannel := kademlia.Network.receive[msg.MessageId]
@@ -441,15 +489,6 @@ func (kademlia *Kademlia) Close() error {
 
 func (kademlia *Kademlia) handleStore(msg Message) error {
 	if msg.Target == nil {
-		return kademlia.Network.listener.Send(Message{
-			MessageId: msg.MessageId,
-			From:      kademlia.Contact,
-			To:        msg.From.Address,
-			Type:      "STORE_ERROR",
-		})
-	}
-	// reject mappings where the key isn't the hash of the value (K = hash(V))
-	if !msg.Target.Equals(NewValueID(msg.Value)) {
 		return kademlia.Network.listener.Send(Message{
 			MessageId: msg.MessageId,
 			From:      kademlia.Contact,
