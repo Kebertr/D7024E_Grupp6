@@ -5,17 +5,26 @@ package cmd
 
 import (
 	"bufio" // buffered IO package for go
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
+	"net"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/RasmusKebert/D7024E_Grupp6/internal/kademlia"
+	"github.com/RasmusKebert/D7024E_Grupp6/internal/package_registry"
 	"github.com/spf13/cobra"
 )
 
 var node *kademlia.Kademlia
+var reg *package_registry.Registry
+var dns *package_registry.MockDNS
+var privateKeys = make(map[string]*rsa.PrivateKey)
+var publicKeys = make(map[string]rsa.PublicKey)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -64,7 +73,6 @@ func init() {
 
 	var startIp string
 	var startPort int
-	var startId string
 
 	/*
 		Creates and runs a local kademlia node
@@ -74,13 +82,56 @@ func init() {
 		Use:   "start",
 		Short: "Start a node and open the interactive shell",
 		Run: func(cmd *cobra.Command, args []string) {
-			id := kademlia.NewKademliaID(startId)
+			// Parse the input as an IP address; reject hostnames and invalid IP text.
+			ip := net.ParseIP(startIp)
+			if ip == nil {
+				fmt.Println("Invalid IP address:", startIp)
+				return
+			}
+			if startPort < 1 || startPort > 65535 {
+				fmt.Println("Port must be between 1 and 65535")
+				return
+			}
+
+			// Derive identity from the canonical IP and the configured listening port.
+			id := kademlia.IPPortDerivedNodeID(ip.String(), startPort)
 			var err error
-			node, err = kademlia.NewKademlia(id, fmt.Sprintf("%s:%d", startIp, startPort))
+			// JoinHostPort formats the address correctly for both IPv4 and IPv6.
+			address := net.JoinHostPort(ip.String(), strconv.Itoa(startPort))
+			node, err = kademlia.NewKademlia(id, address)
 			if err != nil {
 				fmt.Println("Unable to start node:", err)
 				return
 			}
+			dns = package_registry.NewMockDNS()
+
+			domains := []string{
+				"example1.com",
+				"example2.com",
+				"example3.com",
+			}
+
+			privateKeys[domains[0]] = loadPrivateKey("keys/example1.com-private.pem")
+
+			dns.AddDomainCli(domains[0], *loadPublicKey("keys/example1.com-public.pem"))
+
+			privateKeys[domains[1]] = loadPrivateKey("keys/example2.com-private.pem")
+
+			dns.AddDomainCli(domains[1], *loadPublicKey("keys/example2.com-public.pem"))
+
+			privateKeys[domains[2]] = loadPrivateKey("keys/example3.com-private.pem")
+
+			dns.AddDomainCli(domains[2], *loadPublicKey("keys/example3.com-public.pem"))
+
+			if err != nil {
+				fmt.Println("Unable to create mock DNS:", err)
+				return
+			}
+			reg = &package_registry.Registry{
+				Kademlia: node,
+				DNS:      dns,
+			}
+
 			defer func() {
 				if err := node.Close(); err != nil {
 					fmt.Println("Unable to close node:", err)
@@ -97,8 +148,8 @@ func init() {
 		},
 	}
 	startCmd.Flags().StringVarP(&startIp, "ip", "i", "127.0.0.1", "IP address of this node")
-	startCmd.Flags().IntVarP(&startPort, "port", "p", 0, "Port number of this node")
-	startCmd.Flags().StringVar(&startId, "id", kademlia.NewRandomKademliaID().String(), "Kademlia ID of this node")
+	// Use a fixed default because port zero is assigned only after binding.
+	startCmd.Flags().IntVarP(&startPort, "port", "p", 8000, "Port number of this node")
 	rootCmd.AddCommand(startCmd)
 }
 
@@ -124,7 +175,7 @@ func runShell() {
 		case "exit", "quit", "q":
 			return
 		case "help":
-			fmt.Println("ping <ip> <port> | put <value> | get <key> <filename>| exit | detach")
+			fmt.Println("ping <ip> <port> | put <value> | get <key> <filename>| exit | detach || show rt|ds|dns DOMAIN|version DOMAIN:PACKAGE | publish [--force] [--prev=PREVIOUS-VERSION] DOMAIN:PACKAGE:VERSION FILENAME | install DOMAIN:PACKAGE:VERSION")
 		case "ping":
 			shellPing(fields[1:])
 		case "put":
@@ -134,18 +185,18 @@ func runShell() {
 		case "get":
 			shellGet(fields[0:])
 		case "show":
-			if len(fields) != 2 {
-				fmt.Println("Usage: show rt|ds")
-				continue
-			}
 
 			switch fields[1] {
 			case "rt":
 				shellShowRoutingTable()
 			case "ds":
 				shellShowDataStore()
+			case "dns":
+				shellShowDNS(fields[2])
+			case "version":
+				shellShowVersionPackage(fields[2])
 			default:
-				fmt.Println("Usage: show rt|ds")
+				fmt.Println("Usage: show rt|ds|dns DOMAIN|version DOMAIN:PACKAGE")
 			}
 		case "detach":
 			fmt.Println("Use Ctrl-P, Ctrl-Q to detach.")
@@ -276,4 +327,182 @@ func shellShowDataStore() {
 	for key := range node.Data {
 		fmt.Println(key)
 	}
+}
+
+func shellPublish(args []string) {
+	force := false
+	previous := ""
+	filename := ""
+	domain := ""
+	packageName := ""
+	version := ""
+
+	switch len(args) {
+	case 2:
+		parts := strings.Split(args[0], ":")
+		domain = parts[0]
+		packageName = parts[1]
+		version = parts[2]
+		filename = args[1]
+	default:
+		var domainStruct string
+		for _, arg := range args {
+			if arg == "--force" {
+				force = true
+				continue
+			}
+
+			if strings.HasPrefix(arg, "--prev=") {
+				previous = strings.TrimPrefix(arg, "--prev=")
+				continue
+			}
+
+			if strings.Contains(arg, ":") {
+				domainStruct = arg
+				continue
+			}
+
+			filename = arg
+		}
+		parts := strings.Split(domainStruct, ":")
+		domain = parts[0]
+		packageName = parts[1]
+		version = parts[2]
+	}
+
+	file, err := os.ReadFile(filename)
+	if err != nil {
+		fmt.Println("Could not read file:", err)
+		return
+	}
+
+	privateKey, ok := privateKeys[domain]
+	if !ok {
+		fmt.Println("You do not own domain:", domain)
+		return
+	}
+
+	errPublish := reg.Publish(domain, packageName, version, file, force, previous, *privateKey)
+
+	if errPublish != nil {
+		fmt.Println(errPublish)
+	}
+
+}
+
+func shellInstall(args []string) {
+	parts := strings.Split(args[0], ":")
+	domain := parts[0]
+	pkg := parts[1]
+	version := parts[2]
+
+	data, err := reg.Install(domain, pkg, version)
+	if err != nil {
+		fmt.Println("Install failed:", err)
+		return
+	}
+
+	filename := pkg + ".pkg"
+	if err := os.WriteFile(filename, data, 0644); err != nil {
+		fmt.Println("Write failed:", err)
+		return
+	}
+	fmt.Println("Installed to", filename)
+}
+
+func shellShowDNS(domain string) {
+	if node == nil {
+		fmt.Println("Start a node before showing the DNS entry")
+		return
+	}
+
+	key, err := reg.ShowDNS(domain)
+	if err != nil {
+		fmt.Println("DNS lookup failed:", err)
+		return
+	}
+
+	fmt.Printf("DNS for %s: %v\n", domain, key)
+}
+func shellShowVersionPackage(domainPackage string) {
+	if node == nil {
+		fmt.Println("Start a node before showing the version of a package")
+		return
+	}
+
+	parts := strings.Split(domainPackage, ":")
+	if len(parts) != 2 {
+		fmt.Println("Usage: show version DOMAIN:PACKAGE")
+		return
+	}
+
+	domain := parts[0]
+	pkg := parts[1]
+
+	version, err := reg.ShowVersionPackage(domain, pkg)
+	if err != nil {
+		fmt.Println("Version lookup failed:", err)
+		return
+	}
+
+	fmt.Printf("Version for %s:%s: %s\n", domain, pkg, version)
+
+}
+
+func shellCat(args []string) {
+	if len(args) != 1 {
+		fmt.Println("Usage: cat FILENAME")
+		return
+	}
+
+	data, err := os.ReadFile(args[0])
+	if err != nil {
+		fmt.Println("Read failed:", err)
+		return
+	}
+
+	fmt.Println(string(data))
+}
+
+func loadPrivateKey(path string) *rsa.PrivateKey {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
+
+	decoded, _ := pem.Decode(data)
+	if decoded == nil {
+		panic("invalid PEM")
+	}
+
+	key, err := x509.ParsePKCS8PrivateKey(decoded.Bytes)
+	if err != nil {
+		panic(err)
+	}
+
+	privateKey, ok := key.(*rsa.PrivateKey)
+	if !ok {
+		panic("not an RSA private key")
+	}
+
+	return privateKey
+}
+
+func loadPublicKey(path string) *rsa.PublicKey {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
+
+	decoded, _ := pem.Decode(data)
+	if decoded == nil {
+		panic("invalid PEM")
+	}
+
+	key, err := x509.ParsePKIXPublicKey(decoded.Bytes)
+	if err != nil {
+		panic(err)
+	}
+
+	return key.(*rsa.PublicKey)
 }
