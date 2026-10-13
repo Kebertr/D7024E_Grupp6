@@ -78,6 +78,8 @@ func (routingTable *RoutingTable) getBucketIndex(id *KademliaID) int {
 
 // yoink returns a snapshot of all routing-table buckets.
 func (routingTable *RoutingTable) YoinkContacts() [][]Contact {
+	routingTable.muRoute.RLock()
+	defer routingTable.muRoute.RUnlock()
 	buckets := make([][]Contact, len(routingTable.buckets))
 
 	for index, bucket := range routingTable.buckets {
