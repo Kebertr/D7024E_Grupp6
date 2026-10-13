@@ -23,8 +23,6 @@ import (
 var node *kademlia.Kademlia
 var reg *package_registry.Registry
 var dns *package_registry.MockDNS
-var privateKeys = make(map[string]*rsa.PrivateKey)
-var publicKeys = make(map[string]rsa.PublicKey)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -93,10 +91,8 @@ func init() {
 				return
 			}
 
-			// Derive identity from the canonical IP and the configured listening port.
 			id := kademlia.IPPortDerivedNodeID(ip.String(), startPort)
 			var err error
-			// JoinHostPort formats the address correctly for both IPv4 and IPv6.
 			address := net.JoinHostPort(ip.String(), strconv.Itoa(startPort))
 			node, err = kademlia.NewKademlia(id, address)
 			if err != nil {
@@ -111,17 +107,29 @@ func init() {
 				"example3.com",
 			}
 
-			privateKeys[domains[0]] = loadPrivateKey("keys/example1.com-private.pem")
+			publickey, errPublic := loadPublicKey("keys/example1.com-public.pem")
 
-			dns.AddDomainCli(domains[0], *loadPublicKey("keys/example1.com-public.pem"))
+			if errPublic != nil {
+				fmt.Println(errPublic)
+			}
 
-			privateKeys[domains[1]] = loadPrivateKey("keys/example2.com-private.pem")
+			dns.AddDomainCli(domains[0], *publickey)
 
-			dns.AddDomainCli(domains[1], *loadPublicKey("keys/example2.com-public.pem"))
+			publickey, errPublic = loadPublicKey("keys/example2.com-public.pem")
 
-			privateKeys[domains[2]] = loadPrivateKey("keys/example3.com-private.pem")
+			if errPublic != nil {
+				fmt.Println(errPublic)
+			}
 
-			dns.AddDomainCli(domains[2], *loadPublicKey("keys/example3.com-public.pem"))
+			dns.AddDomainCli(domains[1], *publickey)
+
+			publickey, errPublic = loadPublicKey("keys/example3.com-public.pem")
+
+			if errPublic != nil {
+				fmt.Println(errPublic)
+			}
+
+			dns.AddDomainCli(domains[2], *publickey)
 
 			if err != nil {
 				fmt.Println("Unable to create mock DNS:", err)
@@ -198,6 +206,14 @@ func runShell() {
 			default:
 				fmt.Println("Usage: show rt|ds|dns DOMAIN|version DOMAIN:PACKAGE")
 			}
+		case "publish":
+			shellPublish(fields[1:])
+
+		case "install":
+			shellInstall(fields[1:])
+
+		case "cat":
+			shellCat(fields[1:])
 		case "detach":
 			fmt.Println("Use Ctrl-P, Ctrl-Q to detach.")
 
@@ -376,9 +392,10 @@ func shellPublish(args []string) {
 		return
 	}
 
-	privateKey, ok := privateKeys[domain]
-	if !ok {
-		fmt.Println("You do not own domain:", domain)
+	keyPath := "keys/" + domain + "-private.pem"
+	privateKey, errPrivate := loadPrivateKey(keyPath)
+	if errPrivate != nil {
+		fmt.Println(errPrivate)
 		return
 	}
 
@@ -464,45 +481,45 @@ func shellCat(args []string) {
 	fmt.Println(string(data))
 }
 
-func loadPrivateKey(path string) *rsa.PrivateKey {
+func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	decoded, _ := pem.Decode(data)
 	if decoded == nil {
-		panic("invalid PEM")
+		return nil, err
 	}
 
 	key, err := x509.ParsePKCS8PrivateKey(decoded.Bytes)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	privateKey, ok := key.(*rsa.PrivateKey)
 	if !ok {
-		panic("not an RSA private key")
+		return nil, err
 	}
 
-	return privateKey
+	return privateKey, nil
 }
 
-func loadPublicKey(path string) *rsa.PublicKey {
+func loadPublicKey(path string) (*rsa.PublicKey, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	decoded, _ := pem.Decode(data)
 	if decoded == nil {
-		panic("invalid PEM")
+		return nil, err
 	}
 
 	key, err := x509.ParsePKIXPublicKey(decoded.Bytes)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return key.(*rsa.PublicKey)
+	return key.(*rsa.PublicKey), nil
 }
