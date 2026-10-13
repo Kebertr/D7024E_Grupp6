@@ -2,6 +2,8 @@ package kademlia
 
 import (
 	"fmt"
+	reflect "reflect"
+	"sync"
 	"testing"
 )
 
@@ -99,4 +101,95 @@ func TestFindClosestContactsReturnsClosestContacts(t *testing.T) {
 			t.Errorf("contacts are not sorted by XOR distance")
 		}
 	}
+}
+
+// Tests that yoink returns correct
+func TestYoink(t *testing.T) {
+	me := NewContact(
+		NewKademliaID(
+			"1000000000000000000000000000000000000000000000000000000000000000",
+		),
+		"localhost:8000",
+	)
+
+	routingTable := NewRoutingTable(me)
+
+	first := NewContact(
+		NewKademliaID("8000000000000000000000000000000000000000000000000000000000000000"),
+		"localhost:8001",
+	)
+	second := NewContact(
+		NewKademliaID("4000000000000000000000000000000000000000000000000000000000000000"),
+		"localhost:8002",
+	)
+	third := NewContact(
+		NewKademliaID("C0000000000000000000000000000000000000000000000000000000000000"),
+		"localhost:8003",
+	)
+
+	routingTable.AddContact(first)
+	routingTable.AddContact(second)
+	routingTable.AddContact(third)
+	result := routingTable.YoinkContacts()
+
+	if len(result) != IDLength*8 {
+		t.Fatalf("expected %d contacts, got %d", IDLength*8, len(result))
+	}
+
+	expected := map[int][]Contact{
+		routingTable.getBucketIndex(first.ID): {
+			third, // inserted last, so it is first
+			first,
+		},
+		routingTable.getBucketIndex(second.ID): {
+			second,
+		},
+	}
+	for bucketIndex, expectedContacts := range expected {
+		if !reflect.DeepEqual(result[bucketIndex], expectedContacts) {
+			t.Errorf(
+				"bucket %d: expected %#v, got %#v",
+				bucketIndex,
+				expectedContacts,
+				result[bucketIndex],
+			)
+		}
+	}
+
+	for bucketIndex, contacts := range result {
+		if _, expectedBucket := expected[bucketIndex]; !expectedBucket && len(contacts) != 0 {
+			t.Errorf("unexpected contacts in bucket %d: %#v", bucketIndex, contacts)
+		}
+	}
+
+}
+
+// Tests that calls yoinkC while contacts are added same time
+func TestYoinkRace(t *testing.T) {
+	routingTable := NewRoutingTable(NewContact(
+		NewKademliaID("1000000000000000000000000000000000000000000000000000000000000000"),
+		"localhost:8000",
+	))
+
+	var waitGroup sync.WaitGroup
+	waitGroup.Add(2)
+
+	go func() {
+		defer waitGroup.Done()
+		for i := 0; i < 1000; i++ {
+			routingTable.AddContact(NewContact(
+				NewKademliaID(fmt.Sprintf("%064x", i)),
+				fmt.Sprintf("localhost:%d", 8001+i),
+			))
+		}
+	}()
+
+	go func() {
+		defer waitGroup.Done()
+		for i := 0; i < 1000; i++ {
+			routingTable.YoinkContacts()
+		}
+	}()
+
+	waitGroup.Wait()
 }
