@@ -13,7 +13,9 @@ func AddDomains(dns *MockDNS, domains []string) (privateKeys map[string]*rsa.Pri
 		if err != nil {
 			return nil, err
 		}
+		dns.myLookup.Lock()
 		dns.lookupResult[domains[i]] = *publicKey
+		dns.myLookup.Unlock()
 		privateKeys[domains[i]] = privateKey
 	}
 
@@ -28,6 +30,8 @@ func GenerateKeys() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	return privateKey, publicKey, nil
 }
 
-func (d *MockDNS) AddDomainCli(domain string, publicKey rsa.PublicKey) {
-	d.lookupResult[domain] = publicKey
+func (m *MockDNS) AddDomainCli(domain string, publicKey rsa.PublicKey) {
+	m.myLookup.Lock()
+	defer m.myLookup.Unlock()
+	m.lookupResult[domain] = publicKey
 }

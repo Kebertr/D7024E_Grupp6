@@ -2,6 +2,7 @@ package package_registry
 
 import (
 	"crypto/rsa"
+	sync "sync"
 	"testing"
 )
 
@@ -40,4 +41,60 @@ func TestAddDomainsToDNS(t *testing.T) {
 			t.Fatal("Private key for domain is nil:", domain)
 		}
 	}
+}
+
+func TestNewMock(t *testing.T) {
+	dns := NewMockDNS()
+
+	if dns == nil {
+		t.Error("It sohuld not be nil")
+	}
+
+	if dns.lookupResult == nil {
+		t.Error("lookupserulst should give soemthing")
+	}
+
+}
+
+func TestAddDomainCli(t *testing.T) {
+	dns := NewMockDNS()
+
+	_, publicKey, err := GenerateKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dns.AddDomainCli("example.com", *publicKey)
+
+	_, errLook := dns.lookup("example.com")
+	if errLook != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMockDNSRace(t *testing.T) {
+	dns := NewMockDNS()
+
+	_, publicKey, err := GenerateKeys()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < 1000; i++ {
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			dns.AddDomainCli("example.com", *publicKey)
+		}()
+
+		go func() {
+			defer wg.Done()
+			_, _ = dns.lookup("example.com")
+		}()
+	}
+
+	wg.Wait()
 }
